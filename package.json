@@ -1,0 +1,29 @@
+{
+  "name": "factorio-src-bot",
+  "private": true,
+  "main": "dist/main.js",
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "start": "node dist/main.js",
+    "lint": "eslint && prettier --check .",
+    "lint:fix": "eslint --fix && prettier --write ."
+  },
+  "type": "module",
+  "dependencies": {
+    "@sapphire/framework": "^5.3.1",
+    "discord.js": "^14.16.3",
+    "dotenv": "^16.4.7"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.16.0",
+    "eslint": "^9.16.0",
+    "prettier": "^3.4.1",
+    "typescript": "^5.7.2",
+    "typescript-eslint": "^8.17.0"
+  },
+  "prettier": {
+    "semi": false,
+    "printWidth": 120
+  }
+}
