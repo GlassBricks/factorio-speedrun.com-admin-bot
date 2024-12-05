@@ -11,7 +11,10 @@
     "noImplicitOverride": true,
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": true,
+    "experimentalDecorators": true,
+    "emitDecoratorMetadata": true,
     "rootDir": "src",
-    "outDir": "dist"
+    "outDir": "dist",
+    "sourceMap": true
   }
 }

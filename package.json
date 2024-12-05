@@ -6,14 +6,23 @@
     "build": "tsc",
     "clean": "rm -rf dist",
     "start": "node dist/main.js",
+    "dev": "NODE_ENV=development node --watch dist/main.js",
+    "watch": "tsc -w",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write ."
   },
   "type": "module",
   "dependencies": {
+    "@sapphire/decorators": "^6.1.1",
     "@sapphire/framework": "^5.3.1",
+    "@sapphire/plugin-subcommands": "^7.0.1",
+    "@sapphire/utilities": "^3.18.1",
     "discord.js": "^14.16.3",
-    "dotenv": "^16.4.7"
+    "dotenv": "^16.4.7",
+    "reflect-metadata": "^0.2.2",
+    "sequelize": "^6.37.5",
+    "sequelize-typescript": "^2.1.6",
+    "sqlite3": "^5.1.7"
   },
   "devDependencies": {
     "@eslint/js": "^9.16.0",
