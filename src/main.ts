@@ -1,7 +1,7 @@
 import { GatewayIntentBits, Partials } from "discord.js"
 import { config } from "dotenv"
 import { LogLevel, SapphireClient } from "@sapphire/framework"
-import { sequelize } from "./db.js"
+import { sequelize } from "./db/index.js"
 
 import "@sapphire/plugin-subcommands/register"
 import { setUpVoteInitiateCommand } from "./vote-initiate.js"

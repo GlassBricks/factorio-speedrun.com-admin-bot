@@ -8,25 +8,8 @@ import {
 } from "discord.js"
 import { ApplicationCommandRegistry, Command, container, SapphireClient } from "@sapphire/framework"
 import { VoteInitiateCommandConfig } from "./config-type.js"
-import { AddModelToSequelize } from "./db.js"
-import { Column, Index, Model, Table } from "sequelize-typescript"
 import { Job, scheduleJob } from "node-schedule"
-
-@AddModelToSequelize
-@Table({
-  paranoid: true,
-})
-class VoteInitiateMessage extends Model {
-  @Column
-  @Index
-  declare commandId: string
-  @Column
-  declare guildId: Snowflake
-  @Column
-  declare postChannelId: Snowflake
-  @Column
-  declare postMessageId: Snowflake
-}
+import { VoteInitiateMessage } from "./db/vote-initiate-message.js"
 
 interface CurrentMessage {
   record: VoteInitiateMessage
@@ -96,7 +79,7 @@ export class VoteInitiateCommandHandler {
       return
     }
 
-    const messageText = this.formatMessageFromConfig(this.config.postMessage, this.config.postNotifyRoles)
+    const messageText = this.formatMessage(this.config.postMessage, this.config.postNotifyRoles, new Date())
     const message = await channel.send({ content: messageText })
     const record = await VoteInitiateMessage.create({
       commandId: this.config.id,
@@ -207,15 +190,22 @@ export class VoteInitiateCommandHandler {
     this.stopListening()
 
     if (currentMessage) {
-      await currentMessage.message.channel.send(
-        this.formatMessageFromConfig(this.config.passedMessage, this.config.passedNotifyRoles) +
-          "\n\nOriginal message: " +
-          messageLink(
-            currentMessage.record.guildId,
-            currentMessage.record.postChannelId,
-            currentMessage.record.postMessageId,
-          ),
-      )
+      await Promise.all([
+        currentMessage.message.edit(currentMessage.message.content + "\n\n" + "**passed**"),
+        currentMessage.message.channel.send(
+          this.formatMessage(
+            this.config.passedMessage,
+            this.config.passedNotifyRoles,
+            currentMessage.message.createdAt,
+          ) +
+            "\n\nOriginal message: " +
+            messageLink(
+              currentMessage.record.guildId,
+              currentMessage.record.postChannelId,
+              currentMessage.record.postMessageId,
+            ),
+        ),
+      ])
     }
   }
 
@@ -224,7 +214,7 @@ export class VoteInitiateCommandHandler {
     const message = this.currentMessage?.message
     this.stopListening()
     if (message) {
-      await message.edit(this.formatMessageFromConfig(this.config.failedMessage, undefined))
+      await message.edit(this.formatMessage(this.config.failedMessage, undefined, message.createdAt))
     }
   }
 
@@ -236,8 +226,8 @@ export class VoteInitiateCommandHandler {
     )
   }
 
-  private formatMessageFromConfig(message: string, roles: Snowflake[] | undefined): string {
-    const expiryDate = this.getExpiryDate(new Date())
+  private formatMessage(message: string, roles: Snowflake[] | undefined, messageCreateDate: Date): string {
+    const expiryDate = this.getExpiryDate(messageCreateDate)
     const expiryDateRelative = `<t:${Math.floor(expiryDate.getTime() / 1000)}:R>`
     return (
       notifyRoles(roles) +
