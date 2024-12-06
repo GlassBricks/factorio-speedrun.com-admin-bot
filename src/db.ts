@@ -6,6 +6,6 @@ export const sequelize = new Sequelize({
   storage: "database.sqlite",
 })
 
-export function AddModel(model: ModelCtor) {
+export function AddModelToSequelize(model: ModelCtor) {
   sequelize.addModels([model])
 }
