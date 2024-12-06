@@ -12,7 +12,7 @@ export interface VoteInitiateCommandConfig {
   commandName: string
   commandDescription: string
 
-  confirmDescription: string
+  confirmationMessage: string
 
   postChannelId: Snowflake,
   postMessage: string

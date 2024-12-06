@@ -8,7 +8,7 @@ const config: Config =  {
 
       commandName: "test_vote_of_stuff",
       commandDescription: "Testing the vote of no-confidence command",
-      confirmDescription: `Are you sure you want to initiate a banana-ban?
+      confirmationMessage: `Are you sure you want to initiate a banana-ban?
 If %n reacts are received within %h hours, a banana-ban vote will be initiated.`,
       postChannelId: "1314039140169420830",
       postMessage: `Someone has initiated a banana-ban.
@@ -22,7 +22,7 @@ If %n reacts are received %e, we will initiate a banana-ban vote.`,
       passedMessage: "Banana ban bananza!",
       passedNotifyRoles: ["1314038771825508372"],
 
-      failedMessage: "Did not get enough reacts since %e",
+      failedMessage: "Did not get enough reacts by %e",
     },
   ],
 }

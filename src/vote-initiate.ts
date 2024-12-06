@@ -1,10 +1,16 @@
 import {
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
   ChatInputCommandInteraction,
   Events,
+  Guild,
+  GuildBasedChannel,
   Message,
   MessageReaction,
   PartialMessageReaction,
   Snowflake,
+  TextBasedChannel,
 } from "discord.js"
 import { ApplicationCommandRegistry, Command, container, SapphireClient } from "@sapphire/framework"
 import { VoteInitiateCommandConfig } from "./config-type.js"
@@ -49,7 +55,7 @@ export class VoteInitiateCommandHandler {
     await this.startListening(messageRecord, message)
   }
 
-  async tryCreateNew(interaction: ChatInputCommandInteraction) {
+  async chatInputRun(interaction: ChatInputCommandInteraction) {
     const current = await this.getCurrentIfValid()
     if (current) await this.updateAndMaybeResolve()
     if (this.currentMessage) {
@@ -78,7 +84,44 @@ export class VoteInitiateCommandHandler {
       })
       return
     }
+    // await this.createNewInitiationMessage(channel, interaction, guild)
+    if (await this.promptForConfirmation(interaction)) {
+      await this.createNewInitiationMessage(channel, interaction, guild)
+    } else {
+      await interaction.deleteReply()
+    }
+  }
 
+  private async promptForConfirmation(interaction: ChatInputCommandInteraction) {
+    const yesButton = new ButtonBuilder().setCustomId("yes").setLabel("Create vote").setStyle(ButtonStyle.Danger)
+
+    const noButton = new ButtonBuilder().setCustomId("no").setLabel("Cancel").setStyle(ButtonStyle.Secondary)
+
+    const row = new ActionRowBuilder<ButtonBuilder>().addComponents(yesButton, noButton)
+
+    const response = await interaction.reply({
+      content: this.formatMessage(this.config.confirmationMessage, undefined, new Date()),
+      components: [row],
+      ephemeral: true,
+    })
+
+    try {
+      const confirmation = await response.awaitMessageComponent({
+        filter: (i) => i.user.id === interaction.user.id,
+        time: 60_000,
+      })
+      await confirmation.update({ components: [] })
+      return confirmation.customId === "yes"
+    } catch {
+      return false
+    }
+  }
+
+  private async createNewInitiationMessage(
+    channel: GuildBasedChannel & TextBasedChannel,
+    interaction: ChatInputCommandInteraction,
+    guild: Guild,
+  ) {
     const messageText = this.formatMessage(this.config.postMessage, this.config.postNotifyRoles, new Date())
     const message = await channel.send({ content: messageText })
     const record = await VoteInitiateMessage.create({
@@ -87,14 +130,10 @@ export class VoteInitiateCommandHandler {
       postChannelId: this.config.postChannelId,
       postMessageId: message.id,
     })
-    await Promise.all([
-      this.startListening(record, message),
-      message.react(this.config.reaction),
-      interaction.reply({
-        content: "Initiation message created: " + messageLink(guild.id, channel.id, message.id),
-        ephemeral: true,
-      }),
-    ])
+    await interaction.editReply({
+      content: "Initiation message created: " + messageLink(guild.id, channel.id, message.id),
+    })
+    await Promise.all([this.startListening(record, message), message.react(this.config.reaction)])
   }
 
   private async getCurrentIfValid() {
@@ -214,7 +253,7 @@ export class VoteInitiateCommandHandler {
     const message = this.currentMessage?.message
     this.stopListening()
     if (message) {
-      await message.edit(this.formatMessage(this.config.failedMessage, undefined, message.createdAt))
+      await message.edit(this.formatMessage(this.config.failedMessage, this.config.postNotifyRoles, message.createdAt))
     }
   }
 
@@ -293,7 +332,7 @@ export class VoteInitiateCommandHandler {
       }
 
       override async chatInputRun(interaction: ChatInputCommandInteraction) {
-        await handler.tryCreateNew(interaction)
+        await handler.chatInputRun(interaction)
       }
     }
   }
