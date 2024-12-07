@@ -1,4 +1,4 @@
-import { GatewayIntentBits, Partials } from "discord.js"
+import { Events, GatewayIntentBits, Partials } from "discord.js"
 import { config } from "dotenv"
 import { LogLevel, SapphireClient } from "@sapphire/framework"
 import { sequelize } from "./db/index.js"
@@ -20,12 +20,20 @@ const client = new SapphireClient({
   ],
   partials: [Partials.User, Partials.Reaction],
   loadDefaultErrorListeners: true,
+  loadMessageCommandListeners: true,
   logger: {
     level: dev ? LogLevel.Debug : LogLevel.Info,
   },
 })
+
 const configPath = process.cwd() + "/config.js"
 const theConfig: Config = ((await import(configPath)) as { default: Config }).default
+
+if(theConfig.botName) {
+  client.once(Events.ClientReady, (client) => {
+    void client.user.setUsername(theConfig.botName!)
+  })
+}
 
 setUpVoteInitiateCommand(client, theConfig.voteInitiateCommands)
 

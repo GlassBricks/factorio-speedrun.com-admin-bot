@@ -6,6 +6,7 @@ import {
   Events,
   Guild,
   GuildBasedChannel,
+  InteractionContextType,
   Message,
   MessageReaction,
   PartialMessageReaction,
@@ -38,7 +39,7 @@ export class VoteInitiateCommandHandler {
 
   async onReady() {
     const messageRecord = await VoteInitiateMessage.findOne({
-      where: { commandId: this.config.id, guildId: this.config.guildId },
+      where: { commandId: this.config.id, guildId: this.config.guildIds },
     })
     if (!messageRecord) {
       this.logDebug("No existing message.")
@@ -62,14 +63,14 @@ export class VoteInitiateCommandHandler {
       const current = this.currentMessage
       await interaction.reply({
         content:
-          "There is already an active message here: " +
+          this.config.alreadyRunningMessage +
           messageLink(current.message.guildId, current.message.channelId, current.message.id),
         ephemeral: true,
       })
       return
     }
     const guild = interaction.guild
-    if (!guild || guild.id !== this.config.guildId) {
+    if (!guild || !this.config.guildIds.includes(guild.id)) {
       await interaction.reply({
         content: "Invalid guild configuration. Please contact an administrator.",
         ephemeral: true,
@@ -123,11 +124,11 @@ export class VoteInitiateCommandHandler {
     guild: Guild,
   ) {
     const messageText = this.formatMessage(this.config.postMessage, this.config.postNotifyRoles, new Date())
-    const message = await channel.send({ content: messageText })
+    const message = await channel.send(messageText)
     const record = await VoteInitiateMessage.create({
       commandId: this.config.id,
-      guildId: this.config.guildId,
-      postChannelId: this.config.postChannelId,
+      guildId: guild.id,
+      postChannelId: channel.id,
       postMessageId: message.id,
     })
     await interaction.editReply({
@@ -149,7 +150,8 @@ export class VoteInitiateCommandHandler {
 
   private async findAssociatedMessage(messageRecord: VoteInitiateMessage) {
     // if message is invalid for any reason, delete from db and return undefined
-    const guild = await container.client.guilds.fetch(this.config.guildId)
+    const guild = await container.client.guilds.fetch(messageRecord.guildId).catch(() => undefined)
+    if (!guild) return
     if (messageRecord.postChannelId !== this.config.postChannelId) {
       this.logWarn("Post channel ID mismatch.")
       return undefined
@@ -191,9 +193,9 @@ export class VoteInitiateCommandHandler {
     if (numReacts > 1 && reaction?.me) {
       // remove bot's reaction
       await reaction.users.remove(container.client.user!.id)
-      numReacts--
     }
-    if (numReacts >= this.config.reactsRequired && !reaction?.me) {
+    if(reaction?.me) numReacts--
+    if (numReacts >= this.config.reactsRequired) {
       await this.pass()
     }
   }
@@ -230,7 +232,6 @@ export class VoteInitiateCommandHandler {
 
     if (currentMessage) {
       await Promise.all([
-        currentMessage.message.edit(currentMessage.message.content + "\n\n" + "**passed**"),
         currentMessage.message.channel.send(
           this.formatMessage(
             this.config.passedMessage,
@@ -274,6 +275,7 @@ export class VoteInitiateCommandHandler {
         .replace("%n", this.config.reactsRequired.toString())
         .replace("%h", this.config.durationHours.toString())
         .replace("%e", expiryDateRelative)
+        .replace("%r", this.config.reaction)
     )
   }
 
@@ -324,9 +326,12 @@ export class VoteInitiateCommandHandler {
           (b) =>
             b //
               .setName(handler.config.commandName)
-              .setDescription(handler.config.commandDescription),
+              .setDescription(handler.config.commandDescription)
+              .setDefaultMemberPermissions("0")
+              .setContexts([InteractionContextType.Guild]),
           {
-            guildIds: [handler.config.guildId],
+            guildIds: handler.config.guildIds,
+            idHints: handler.config.idHints,
           },
         )
       }

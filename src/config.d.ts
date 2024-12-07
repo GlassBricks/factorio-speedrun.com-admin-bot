@@ -1,18 +1,22 @@
 import { Snowflake } from "discord.js"
 
 export interface Config {
+  botName?: string
   voteInitiateCommands?: VoteInitiateCommandConfig[]
 }
 
 export interface VoteInitiateCommandConfig {
   id: string
 
-  guildId: Snowflake
+  idHints: string[] | undefined
+  guildIds: Snowflake[]
 
   commandName: string
   commandDescription: string
 
   confirmationMessage: string
+
+  alreadyRunningMessage: string
 
   postChannelId: Snowflake,
   postMessage: string
