@@ -5,7 +5,7 @@ import { sequelize } from "./db/index.js"
 
 import "@sapphire/plugin-subcommands/register"
 import { setUpVoteInitiateCommand } from "./vote-initiate.js"
-import theConfig from "./config.js"
+import type { Config } from "./config.js"
 
 config()
 
@@ -24,6 +24,8 @@ const client = new SapphireClient({
     level: dev ? LogLevel.Debug : LogLevel.Info,
   },
 })
+const configPath = process.cwd() + "/config.js"
+const theConfig: Config = ((await import(configPath)) as { default: Config }).default
 
 setUpVoteInitiateCommand(client, theConfig.voteInitiateCommands)
 

@@ -13,7 +13,7 @@ import {
   TextBasedChannel,
 } from "discord.js"
 import { ApplicationCommandRegistry, Command, container, SapphireClient } from "@sapphire/framework"
-import { VoteInitiateCommandConfig } from "./config-type.js"
+import { VoteInitiateCommandConfig } from "./config.js"
 import { Job, scheduleJob } from "node-schedule"
 import { VoteInitiateMessage } from "./db/vote-initiate-message.js"
 
