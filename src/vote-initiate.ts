@@ -94,7 +94,7 @@ export class VoteInitiateCommandHandler {
   }
 
   private async promptForConfirmation(interaction: ChatInputCommandInteraction) {
-    const yesButton = new ButtonBuilder().setCustomId("yes").setLabel("Create vote").setStyle(ButtonStyle.Danger)
+    const yesButton = new ButtonBuilder().setCustomId("yes").setLabel("Create message").setStyle(ButtonStyle.Danger)
 
     const noButton = new ButtonBuilder().setCustomId("no").setLabel("Cancel").setStyle(ButtonStyle.Secondary)
 
