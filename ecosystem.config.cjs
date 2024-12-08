@@ -3,7 +3,7 @@ module.exports = {
     {
       name: "bot",
       script: "./dist/main.js",
-      exp_backoff_restart_delay: 100,
+      min_uptime: 5000,
     },
   ],
 }
