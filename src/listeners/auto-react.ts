@@ -15,7 +15,7 @@ export class AutoReactListener extends Listener<typeof Events.PrefixedMessage> {
     this.config =
       config.autoReact?.map((entry) => ({
         ...entry,
-        regexpCompiled: new RegExp(entry.regex),
+        regexpCompiled: new RegExp(entry.regex, "i"),
       })) ?? []
   }
 
