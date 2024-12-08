@@ -9,7 +9,7 @@ If the no-confidence vote is initiated and receives a 2/3 majority, the current 
 
 /** @type {Config} */
 const config = {
-  botName: "Factorio SRC admin bot",
+  botName: "Factorio SRC Admin Bot",
   voteInitiateCommands: [
     {
       id: "initiate_no_confidence_vote",
