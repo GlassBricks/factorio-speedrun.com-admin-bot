@@ -2,7 +2,7 @@ import { Column, Index, Model, Table } from "sequelize-typescript"
 import { Snowflake } from "discord.js"
 
 @Table({
-  paranoid: true
+  paranoid: true,
 })
 export class VoteInitiateMessage extends Model {
   @Column

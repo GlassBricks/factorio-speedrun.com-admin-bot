@@ -18,7 +18,7 @@ export interface VoteInitiateCommandConfig {
 
   alreadyRunningMessage: string
 
-  postChannelId: Snowflake,
+  postChannelId: Snowflake
   postMessage: string
   postNotifyRoles?: Snowflake[]
 

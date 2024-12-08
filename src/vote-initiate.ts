@@ -195,7 +195,7 @@ export class VoteInitiateCommandHandler {
       // remove bot's reaction
       await reaction.users.remove(container.client.user!.id)
     }
-    if(reaction?.me) numReacts--
+    if (reaction?.me) numReacts--
     if (numReacts >= this.config.reactsRequired) {
       await this.pass()
     }

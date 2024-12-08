@@ -1,4 +1,3 @@
-
 import { Command } from "@sapphire/framework"
 import { Message } from "discord.js"
 
