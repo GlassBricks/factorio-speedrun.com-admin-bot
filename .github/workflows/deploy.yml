@@ -5,22 +5,21 @@ on:
   pull_request:
     branches: [deploy]
 jobs:
-  build:
+  deploy:
     runs-on: self-hosted
     steps:
-      - name: Set env
-        run: echo "REPO_URL=${{ github.repositoryUrl }}" >> $GITHUB_ENV
-      - name: Git pull
+      - name: Checkout
         working-directory: /home/container/bot
         run: |
           git init
-          git set-url origin $REPO_URL || git remote add origin $REPO_URL
+          git remote set-url origin $REPO_URL || git remote add origin $REPO_URL
           git fetch
           git reset --hard origin/deploy
+        env:
+          REPO_URL: ${{ github.event.repository.html_url }}
       - working-directory: /home/container/bot
         run: npm ci
-      - name: check
-        working-directory: /home/container/bot
+      - working-directory: /home/container/bot
         run: npm run check
       - working-directory: /home/container/bot
         run: npm run clean && npm run build
