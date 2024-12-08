@@ -29,7 +29,7 @@ const client = new SapphireClient({
 const configPath = process.cwd() + "/config.js"
 const theConfig: Config = ((await import(configPath)) as { default: Config }).default
 
-if(theConfig.botName) {
+if (theConfig.botName) {
   client.once(Events.ClientReady, (client) => {
     client.logger.info("Bot is ready")
     process.send!("ready")
