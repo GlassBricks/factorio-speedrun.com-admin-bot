@@ -43,13 +43,22 @@ If %n %r reacts are received %e, ` + reelectDescription,
   ],
   autoReact: [
     {
-      forUsers: ["691597162705977405"],
-      regex: "apple|banana",
-      reaction: "🍌",
+      onBotMention: false,
+      users: ["204512563197640704"],
+      channels: ["1204051483872727150"],
+      regex: "\\d+\\.\\d+\\.\\d+",
+      reactions: ["🤖", "🎉"],
     },
     {
+      onBotMention: false,
+      users: ["691597162705977405"],
       regex: "apple|banana",
-      reaction: "🍎",
+      reactions: ["🍌"],
+    },
+    {
+      onBotMention: true,
+      regex: "apple|banana",
+      reactions: ["🍎"],
     },
   ],
 }

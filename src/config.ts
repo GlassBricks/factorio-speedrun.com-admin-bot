@@ -34,9 +34,11 @@ export interface VoteInitiateCommandConfig {
 }
 
 export interface AutoReactConfig {
-  forUsers?: Snowflake[]
+  onBotMention: boolean
+  users?: Snowflake[]
+  channels?: Snowflake[]
   regex: string
-  reaction: string
+  reactions: string[]
 }
 
 const config: Config = ((await import(process.cwd() + "/config.js")) as { default: Config }).default
