@@ -31,6 +31,8 @@ const theConfig: Config = ((await import(configPath)) as { default: Config }).de
 
 if(theConfig.botName) {
   client.once(Events.ClientReady, (client) => {
+    client.logger.info("Bot is ready")
+    process.send!("ready")
     void client.user.setUsername(theConfig.botName!)
   })
 }
@@ -38,5 +40,5 @@ if(theConfig.botName) {
 setUpVoteInitiateCommand(client, theConfig.voteInitiateCommands)
 
 await sequelize.sync()
-
+client.logger.info("Database synced")
 await client.login(process.env.DISCORD_TOKEN)

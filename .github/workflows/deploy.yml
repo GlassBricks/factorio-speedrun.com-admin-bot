@@ -22,4 +22,4 @@ jobs:
       - working-directory: /home/container/bot
         run: npm run clean && npm run build
       - working-directory: /home/container/bot
-        run: npm run pm2:restart
+        run: npm run pm2:start
