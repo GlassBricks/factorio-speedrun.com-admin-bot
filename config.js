@@ -7,7 +7,7 @@ const config = {
     {
       id: "initiate_no_confidence_vote",
       guildIds: ["260103071017730048"],
-      idHints: [],
+      idHints: ["1315074989916946556"],
 
       commandName: "initiate_no_confidence_vote",
       commandDescription: "Testing vote initiate command",
