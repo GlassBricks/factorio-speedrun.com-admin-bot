@@ -1,0 +1,17 @@
+name: DBH
+on:
+  push:
+    branches: [ deploy ]
+  pull_request:
+    branches: [ deploy ]
+jobs:
+  build:
+    runs-on: self-hosted
+    steps:
+      - name: Git pull
+        working-directory: ~/bot
+        run: |
+          git fetch
+          git reset --hard origin/deploy
+      - working-directory: ~/bot
+        run: ./restart-bot.sh

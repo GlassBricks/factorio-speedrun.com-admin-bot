@@ -8,7 +8,8 @@
     "dev": "NODE_ENV=development node --watch dist/main.js",
     "watch": "tsc -w",
     "lint": "eslint && prettier --check .",
-    "lint:fix": "eslint --fix && prettier --write ."
+    "lint:fix": "eslint --fix && prettier --write .",
+    "start-pm2": "pm2 start dist/main.js --name bot"
   },
   "type": "module",
   "dependencies": {

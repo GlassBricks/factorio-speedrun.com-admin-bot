@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-pm2 stop bot
+pm2 stop bot || true
 npm ci
 npm run clean
 npm run build
