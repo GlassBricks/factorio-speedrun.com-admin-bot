@@ -9,9 +9,9 @@ jobs:
     runs-on: self-hosted
     steps:
       - name: Git pull
-        working-directory: ~/bot
+        working-directory: /home/container/bot
         run: |
           git fetch
           git reset --hard origin/deploy
-      - working-directory: ~/bot
+      - working-directory: /home/container/bot
         run: ./restart-bot.sh
