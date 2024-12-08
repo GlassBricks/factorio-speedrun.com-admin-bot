@@ -1,5 +1,9 @@
 /** @typedef {import("./src/config.ts").Config} Config */
 
+const reelectDescription = `this initiates a no-confidence vote.
+After successful initiation, a vote will open: if the vote receives a 2/3 majority, the current admin team is dismissed and reelections are held.
+More info: https://discord.com/channels/260103071017730048/390245480036040704/1311861862459244565 option 2`
+
 /** @type {Config} */
 const config = {
   botName: "Factorio SRC admin bot",
@@ -10,26 +14,25 @@ const config = {
       idHints: ["1315074989916946556"],
 
       commandName: "initiate_no_confidence_vote",
-      commandDescription: "Testing vote initiate command",
+      commandDescription: "Initiate a no-confidence vote",
 
-      confirmationMessage: `Are you sure you want to initiate a banana-ban vote?
-A message will be created. If %n reacts are received within %h hours, a banana-ban vote will be initiated.`,
+      confirmationMessage: `Are you sure you want to begin initiating a no-confidence vote?
+A message will be created in %c. If %n reacts are received within %h hours, ` + reelectDescription,
 
-      alreadyRunningMessage: "There is already an active message here: ",
+      alreadyRunningMessage: "There is already an active initation message here: ",
 
       postChannelId: "1309961515516039238",
       postNotifyRoles: ["316699796276641792"],
-      postMessage: `A banana-ban has been initiated.
-If %n %r reacts are received %e, we will ban all bananas.`,
+      postMessage: `**No-confidence vote initiation**
+If %n %r reacts are received %e, ` + reelectDescription,
 
       reaction: "🍎",
       reactsRequired: 2,
-      durationHours: 1 / 60,
+      durationHours: 1/60,
 
-      passedNotifyRoles: ["1201289542200733766"],
-      passedMessage: "Banana ban bananza. Skip the vote, all hail our new apple overlords.",
-
-      failedMessage: "A banana ban has been initiated.\nDid not get enough reacts by %e.",
+      passedNotifyRoles: ["316699796276641792"],
+      failedMessage: "**No-confidence vote initiation**\n*Failed: did not get enough reacts by %e.*",
+      passedMessage: "A no-confidence vote has been initiated.\n<@&1201289542200733766> please set up the vote.",
     },
   ],
   autoReact: [

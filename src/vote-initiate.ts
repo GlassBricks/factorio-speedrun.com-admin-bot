@@ -275,6 +275,7 @@ export class VoteInitiateCommandHandler {
       message
         .replace("%n", this.config.reactsRequired.toString())
         .replace("%h", this.config.durationHours.toString())
+        .replace("%c", `<#${this.config.postChannelId}>`)
         .replace("%e", expiryDateRelative)
         .replace("%r", this.config.reaction)
     )
