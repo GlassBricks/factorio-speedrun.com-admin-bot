@@ -1,4 +1,4 @@
-/** @typedef {import("./src/config.d.ts").Config} Config */
+/** @typedef {import("./src/config.ts").Config} Config */
 
 /** @type {Config} */
 const config = {
@@ -30,6 +30,17 @@ If %n %r reacts are received %e, we will ban all bananas.`,
       passedMessage: "Banana ban bananza. Skip the vote, all hail our new apple overlords.",
 
       failedMessage: "A banana ban has been initiated.\nDid not get enough reacts by %e.",
+    },
+  ],
+  autoReact: [
+    {
+      forUsers: ["691597162705977405"],
+      regex: "apple|banana",
+      reaction: "🍌",
+    },
+    {
+      regex: "apple|banana",
+      reaction: "🍎",
     },
   ],
 }
