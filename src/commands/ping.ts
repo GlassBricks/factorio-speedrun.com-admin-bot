@@ -1,6 +1,7 @@
 import { Command } from "@sapphire/framework"
 import { Message } from "discord.js"
 
+// noinspection JSUnusedGlobalSymbols
 export class PingCommand extends Command {
   constructor(ctx: Command.LoaderContext, options: Command.Options) {
     super(ctx, {
@@ -11,6 +12,7 @@ export class PingCommand extends Command {
   }
 
   override async messageRun(message: Message) {
+    this.container.logger.debug("PingCommand", "Received message:", message.content)
     const reply = await message.reply({
       content: "I'm alive!",
     })

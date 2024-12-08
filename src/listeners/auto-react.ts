@@ -1,4 +1,4 @@
-import { Events, Listener } from "@sapphire/framework"
+import { container, Events, Listener } from "@sapphire/framework"
 import { Message } from "discord.js"
 import config, { AutoReactConfig } from "../config.js"
 
@@ -30,6 +30,17 @@ export class AutoReactListener extends Listener<typeof Events.PreMessageParsed> 
       if (users && !users.includes(userId.id)) continue
       if (channels && !channels.includes(channelId)) continue
       if (!regexpCompiled.test(message.content)) continue
+      container.logger.debug(
+        "AutoReactListener",
+        "Reacting",
+        reactions,
+        "to message",
+        message.id,
+        "from",
+        userId.id,
+        "in",
+        channelId,
+      )
       for (const reaction of reactions) {
         await message.react(reaction)
       }
