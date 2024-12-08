@@ -17,7 +17,8 @@ const config = {
       idHints: ["1315074989916946556"],
 
       commandName: "initiate_no_confidence_vote",
-      commandDescription: "Initiate a no-confidence vote",
+      commandDescription:
+        "Initiate a no-confidence vote. Run the command for more info (it will show a confirmation message).",
 
       confirmationMessage:
         `Are you sure you want to begin initiating a no-confidence vote?
