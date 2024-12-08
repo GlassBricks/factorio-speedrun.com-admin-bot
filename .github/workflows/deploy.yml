@@ -14,4 +14,8 @@ jobs:
           git fetch
           git reset --hard origin/deploy
       - working-directory: /home/container/bot
-        run: ./restart-bot.sh
+        run: npm ci
+      - working-directory: /home/container/bot
+        run: npm run clean && npm run build
+      - working-directory: /home/container/bot
+        run: npm run pm2:restart

@@ -9,7 +9,7 @@
     "watch": "tsc -w",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
-    "start-pm2": "pm2 start dist/main.js --name bot --exp-backoff-restart-delay=100"
+    "pm2:restart": "pm2 startOrRestart dist/main.js --name bot --exp-backoff-restart-delay=100"
   },
   "type": "module",
   "dependencies": {
