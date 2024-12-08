@@ -15,10 +15,9 @@ const client = new SapphireClient({
   intents: [
     GatewayIntentBits.Guilds,
     GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.MessageContent,
     GatewayIntentBits.GuildMessageReactions,
+    GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
-    GatewayIntentBits.DirectMessageReactions,
   ],
   partials: [Partials.User, Partials.Reaction, Partials.Channel],
   loadDefaultErrorListeners: true,
