@@ -9,6 +9,7 @@
     "watch": "tsc -w",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
+    "check": "npm run lint && tsc --noEmit",
     "pm2:start": "pm2 startOrRestart ecosystem.config.cjs"
   },
   "type": "module",

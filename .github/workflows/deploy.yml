@@ -1,9 +1,9 @@
 name: DBH
 on:
   push:
-    branches: [ deploy ]
+    branches: [deploy]
   pull_request:
-    branches: [ deploy ]
+    branches: [deploy]
 jobs:
   build:
     runs-on: self-hosted
@@ -19,6 +19,9 @@ jobs:
           git reset --hard origin/deploy
       - working-directory: /home/container/bot
         run: npm ci
+      - name: check
+        working-directory: /home/container/bot
+        run: npm run check
       - working-directory: /home/container/bot
         run: npm run clean && npm run build
       - working-directory: /home/container/bot
