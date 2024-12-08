@@ -123,6 +123,7 @@ export class VoteInitiateCommandHandler {
     interaction: ChatInputCommandInteraction,
     guild: Guild,
   ) {
+    this.logInfo("Creating new initiation message, from user id", interaction.user.id)
     const messageText = this.formatMessage(this.config.postMessage, this.config.postNotifyRoles, new Date())
     const message = await channel.send(messageText)
     const record = await VoteInitiateMessage.create({
