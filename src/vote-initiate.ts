@@ -138,7 +138,7 @@ export class VoteInitiateCommandHandler {
       postMessageId: message.id,
     })
     await interaction.editReply({
-      content: "Initiation message created: " + messageLink(guild.id, channel.id, message.id),
+      content: "Initiation message created: " + message.url,
     })
     await Promise.all([this.startListening(record, message), message.react(this.config.reaction)])
   }
