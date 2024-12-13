@@ -12,6 +12,9 @@ const Roles = {
   Speedrunner: "316699796276641792",
 }
 const GuildID = "260103071017730048"
+const Channels = {
+  SrcAnnouncements: "1313654063526580255",
+}
 
 /** @type {Config} */
 const config = {
@@ -41,7 +44,7 @@ A message will be created in %c. If %n reacts are received within %h hours, ` + 
 
       alreadyRunningMessage: "There is already an active initiation message here: ",
 
-      postChannelId: "1313654063526580255",
+      postChannelId: Channels.SrcAnnouncements,
       postNotifyRoles: [Roles.Speedrunner],
       postMessage:
         `**No-confidence vote initiation**
