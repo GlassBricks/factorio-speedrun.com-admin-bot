@@ -94,7 +94,7 @@ export class Announce extends Command {
         {
           type: ComponentType.Button,
           custom_id: `${DeleteOwnMessageIdPrefix}${message.channel.id},${message.id}`,
-          label: "Delete message",
+          label: "Delete announcement",
           style: ButtonStyle.Danger,
         },
       ],
@@ -108,7 +108,7 @@ export class Announce extends Command {
       !(await this.canSendInChannel(auditLogChannel as AnnouncementChannel))
     ) {
       await interaction.reply({
-        content: `Message created: ${message.url}.\n*Announcement log channel is invalid! Check it exists and bot has permission to send messages to it.*`,
+        content: `Announcement created: ${message.url}.\n*Announcement log channel is invalid! Check it exists and bot has permission to send messages to it.*`,
         components: [deleteButton],
         ephemeral: true,
       })
@@ -117,7 +117,7 @@ export class Announce extends Command {
 
     await Promise.all([
       auditLogChannel.send({
-        content: `Message created by <@${interaction.user.id}>: ${message.url}`,
+        content: `<@${interaction.user.id}> used /${config.announceCommand!.commandName}: ${message.url}`,
         components: [deleteButton],
       }),
       interaction.reply({
