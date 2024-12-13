@@ -30,7 +30,7 @@ const client = new SapphireClient({
 if (config.botName) {
   client.once(Events.ClientReady, (client) => {
     client.logger.info("Bot is ready")
-    void client.user.setUsername(config.botName!)
+    client.user.setUsername(config.botName!).catch((error) => client.logger.error("Failed to set bot name", error))
   })
 }
 
