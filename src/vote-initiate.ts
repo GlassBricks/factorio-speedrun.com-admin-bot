@@ -13,10 +13,11 @@ import {
   Snowflake,
   TextBasedChannel,
 } from "discord.js"
-import { ApplicationCommandRegistry, Command, container, SapphireClient } from "@sapphire/framework"
+import { ApplicationCommandRegistry, Command, container, ILogger, SapphireClient } from "@sapphire/framework"
 import { VoteInitiateCommandConfig } from "./config.js"
 import { Job, scheduleJob } from "node-schedule"
 import { VoteInitiateMessage } from "./db/vote-initiate-message.js"
+import { createLogger } from "./logger.js"
 
 interface CurrentMessage {
   record: VoteInitiateMessage
@@ -35,24 +36,28 @@ function notifyRoles(roles: Snowflake[] | undefined) {
 export class VoteInitiateCommandHandler {
   private currentMessage?: CurrentMessage
 
-  constructor(readonly config: VoteInitiateCommandConfig) {}
+  logger: ILogger
+
+  constructor(readonly config: VoteInitiateCommandConfig) {
+    this.logger = createLogger(`VoteInitiateCommandHandler[${this.config.commandName}]`)
+  }
 
   async onReady() {
     const messageRecord = await VoteInitiateMessage.findOne({
       where: { commandId: this.config.id, guildId: this.config.guildIds },
     })
     if (!messageRecord) {
-      this.logDebug("No existing message.")
+      this.logger.debug("No existing message.")
       return
     }
 
     const message = await this.findAssociatedMessage(messageRecord)
     if (!message) {
-      this.logWarn("Deleting invalid record.")
+      this.logger.warn("Deleting invalid record.")
       await messageRecord.destroy()
       return
     }
-    this.logInfo("Found existing message, resuming.")
+    this.logger.info("Found existing message, resuming.")
     await this.startListening(messageRecord, message)
   }
 
@@ -123,7 +128,7 @@ export class VoteInitiateCommandHandler {
     interaction: ChatInputCommandInteraction,
     guild: Guild,
   ) {
-    this.logInfo("Creating new initiation message, from user id", interaction.user.id)
+    this.logger.info("Creating new initiation message, from user id", interaction.user.id)
     const messageText = this.formatMessage(this.config.postMessage, this.config.postNotifyRoles, new Date())
     const message = await channel.send(messageText)
     const record = await VoteInitiateMessage.create({
@@ -154,25 +159,25 @@ export class VoteInitiateCommandHandler {
     const guild = await container.client.guilds.fetch(messageRecord.guildId).catch(() => undefined)
     if (!guild) return
     if (messageRecord.postChannelId !== this.config.postChannelId) {
-      this.logWarn("Post channel ID mismatch.")
+      this.logger.warn("Post channel ID mismatch.")
       return undefined
     }
     const channel = await guild.channels.fetch(this.config.postChannelId)
     if (!channel || !channel.isTextBased()) {
-      this.logWarn("Post channel is not a valid text channel.")
+      this.logger.warn("Post channel is not a valid text channel.")
       return undefined
     }
 
     const message = await channel.messages.fetch(messageRecord.postMessageId).catch(() => undefined)
     if (!message) {
-      this.logWarn("Message not found.")
+      this.logger.warn("Message not found.")
       return undefined
     }
     return message
   }
 
   private async startListening(messageRecord: VoteInitiateMessage, message: Message<true>) {
-    this.logInfo("Started listening for reactions")
+    this.logger.info("Started listening for reactions")
 
     const expiryJob = scheduleJob(this.getExpiryDate(message.createdAt), () => this.updateAndMaybeResolve())
 
@@ -190,7 +195,7 @@ export class VoteInitiateCommandHandler {
     if (!this.isMyReaction(reaction)) return
     reaction = await reaction.fetch()
     let numReacts = reaction?.count ?? 0
-    this.logDebug("React added, current count:", numReacts)
+    this.logger.debug("React added, current count:", numReacts)
     if (numReacts > 1 && reaction?.me) {
       // remove bot's reaction
       await reaction.users.remove(container.client.user!.id)
@@ -205,7 +210,7 @@ export class VoteInitiateCommandHandler {
     if (!this.isMyReaction(reaction)) return
     reaction = await reaction.fetch()
     const count = reaction.count
-    this.logDebug("React removed, current count:", count)
+    this.logger.debug("React removed, current count:", count)
     if (reaction.count == 0) {
       await this.currentMessage?.message.react(this.config.reaction)
     }
@@ -227,7 +232,7 @@ export class VoteInitiateCommandHandler {
   }
 
   private async pass() {
-    this.logInfo("Passed initiation")
+    this.logger.info("Passed initiation")
     const currentMessage = this.currentMessage
     this.stopListening()
 
@@ -251,7 +256,7 @@ export class VoteInitiateCommandHandler {
   }
 
   private async fail() {
-    this.logInfo("Time expired, failing initiation")
+    this.logger.info("Time expired, failing initiation")
     const message = this.currentMessage?.message
     this.stopListening()
     if (message) {
@@ -292,22 +297,6 @@ export class VoteInitiateCommandHandler {
       message.expiryJob?.cancel()
       void message.record.destroy()
     }
-  }
-
-  logInfo(...message: unknown[]) {
-    container.logger.info(`VoteInitiateCommandHandler[${this.config.commandName}]`, ...message)
-  }
-
-  logDebug(...message: unknown[]) {
-    container.logger.debug(`VoteInitiateCommandHandler[${this.config.commandName}]`, ...message)
-  }
-
-  logWarn(...message: unknown[]) {
-    container.logger.warn(`VoteInitiateCommandHandler[${this.config.commandName}]`, ...message)
-  }
-
-  logError(...message: unknown[]) {
-    container.logger.error(`VoteInitiateCommandHandler[${this.config.commandName}]`, ...message)
   }
 
   createCommandClass() {
@@ -362,17 +351,17 @@ export function setUpVoteInitiateCommand(client: SapphireClient, config: VoteIni
 
   client.once(Events.ClientReady, () => {
     for (const handler of voteInitiateCommandHandlers) {
-      handler.onReady().catch((e) => handler.logError("onLoad:", e))
+      handler.onReady().catch((e) => handler.logger.error("onLoad:", e))
     }
   })
   client.on(Events.MessageReactionAdd, (reaction) => {
     for (const handler of voteInitiateCommandHandlers) {
-      handler.onReactAdded(reaction).catch((e) => handler.logError("onReactAdded:", e))
+      handler.onReactAdded(reaction).catch((e) => handler.logger.error("onReactAdded:", e))
     }
   })
   client.on(Events.MessageReactionRemove, (reaction) => {
     for (const handler of voteInitiateCommandHandlers) {
-      handler.onReactRemoved(reaction).catch((e) => handler.logError("onReactRemoved:", e))
+      handler.onReactRemoved(reaction).catch((e) => handler.logger.error("onReactRemoved:", e))
     }
   })
 }
