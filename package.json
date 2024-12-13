@@ -1,6 +1,7 @@
 {
   "name": "factorio-src-bot",
   "private": true,
+  "main": "dist/main.js",
   "scripts": {
     "clean": "rm -rf out/",
     "build": "npm run clean && tsc && npm run copy-to-dist",
