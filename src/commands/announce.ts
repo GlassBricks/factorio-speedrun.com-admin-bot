@@ -11,6 +11,7 @@ import {
   ComponentType,
   DiscordAPIError,
   Events,
+  GuildMember,
   Interaction,
   InteractionContextType,
   Message,
@@ -20,6 +21,7 @@ import { createLogger } from "../logger.js"
 
 const textBasedChannels = [ChannelType.GuildText, ChannelType.GuildAnnouncement] as const
 const DeleteOwnMessageIdPrefix = "announce.deleteOwnMessage:"
+type AnnouncementChannel = Extract<Channel, { type: (typeof textBasedChannels)[number] }>
 
 @ApplyOptions<Command.Options>({
   name: config.announceCommand?.commandName,
@@ -70,8 +72,8 @@ export class Announce extends Command {
 
   private async createMessage(
     interaction: ChatInputCommandInteraction<"cached">,
-    channel: Extract<Channel, { type: (typeof textBasedChannels)[number] }>,
-  ) {
+    channel: AnnouncementChannel,
+  ): Promise<void> {
     const messageContent = interaction.options.getString("message", true)
     let message: Message
     try {
@@ -79,46 +81,72 @@ export class Announce extends Command {
       this.logger.info("Announcement created", message.url)
     } catch (error: unknown) {
       this.logger.error(error)
+      const message = error instanceof Error ? error.message : "Unknown error"
       await interaction.reply({
-        content: `Error trying to send message! Contact bot owner if you think this is a bug.`,
+        content: `Error trying to send message: ${message}. Contact a developer you think this is a bug.`,
         ephemeral: true,
       })
       return
     }
 
-    const row = new ActionRowBuilder<ButtonBuilder>({
+    const deleteButton = new ActionRowBuilder<ButtonBuilder>({
       components: [
         {
           type: ComponentType.Button,
           custom_id: `${DeleteOwnMessageIdPrefix}${message.channel.id},${message.id}`,
-          label: "Delete announcement message",
+          label: "Delete message",
           style: ButtonStyle.Danger,
         },
       ],
     })
 
-    return interaction.reply({
-      content: `Message created: ${message.url}`,
-      components: [row],
-      ephemeral: true,
-    })
+    const auditLogChannel = await interaction.guild.channels.fetch(config.announceCommand!.auditLogChannelId)
+    if (
+      !auditLogChannel ||
+      !auditLogChannel.isTextBased() ||
+      !(textBasedChannels as readonly ChannelType[]).includes(auditLogChannel.type) ||
+      !(await this.canSendInChannel(auditLogChannel as AnnouncementChannel))
+    ) {
+      await interaction.reply({
+        content: `Message created: ${message.url}.\n*Announcement log channel is invalid! Check it exists and bot has permission to send messages to it.*`,
+        components: [deleteButton],
+        ephemeral: true,
+      })
+      return
+    }
+
+    await Promise.all([
+      auditLogChannel.send({
+        content: `Message created by <@${interaction.user.id}>: ${message.url}`,
+        components: [deleteButton],
+      }),
+      interaction.reply({
+        content: `Message created: ${message.url}.\n*Also recorded in <#${auditLogChannel.id}>.*`,
+        ephemeral: true,
+      }),
+    ])
+  }
+
+  private hasRequiredRoles(user: GuildMember | undefined): string | undefined {
+    const requiredRoles = config.announceCommand?.requiredRoles
+    if (requiredRoles && (!user || !user.roles.cache.some((role) => requiredRoles?.includes(role.id)))) {
+      return `You must be one of the following roles to use this:\n${requiredRoles.map((role) => `<@&${role}>`).join(", ")}`
+    }
+    return undefined
   }
 
   private async canAnnounce(
     interaction: ChatInputCommandInteraction<"cached">,
-    channel: Extract<Channel, { type: (typeof textBasedChannels)[number] }>,
+    channel: AnnouncementChannel,
   ): Promise<boolean> {
     const user = await interaction.guild.members.fetch(interaction.user.id)
-    const requiredRoles = config.announceCommand?.requiredRoles
-    if (requiredRoles) {
-      const hasRole = user.roles.cache.some((role) => requiredRoles?.includes(role.id))
-      if (!hasRole) {
-        await interaction.reply({
-          content: `You must be one of the following roles to use /${config.announceCommand!.commandName}:\n${requiredRoles.map((role) => `<@&${role}>`).join(", ")}`,
-          ephemeral: true,
-        })
-        return false
-      }
+    const requiredRoleMessage = this.hasRequiredRoles(user)
+    if (requiredRoleMessage) {
+      await interaction.reply({
+        content: requiredRoleMessage,
+        ephemeral: true,
+      })
+      return false
     }
     if (channel.guildId !== interaction.guildId) {
       await interaction.reply({
@@ -148,7 +176,7 @@ export class Announce extends Command {
     return true
   }
 
-  private async canSendInChannel(channel: Extract<Channel, { type: (typeof textBasedChannels)[number] }>) {
+  private async canSendInChannel(channel: AnnouncementChannel) {
     return channel
       .permissionsFor(await channel.guild.members.fetchMe())
       .has(PermissionFlagsBits.SendMessages | PermissionFlagsBits.ViewChannel, true)
@@ -160,6 +188,28 @@ export class Announce extends Command {
     if (!interaction.isButton() || !customId.startsWith(DeleteOwnMessageIdPrefix)) return
     const [channelId, messageId] = customId.substring(DeleteOwnMessageIdPrefix.length).split(",")
     if (!channelId || !messageId) return
+
+    const user = await interaction.guild?.members.fetch(interaction.user.id)
+    const requiredRoleMessage = this.hasRequiredRoles(user)
+    if (requiredRoleMessage) {
+      await interaction.reply({
+        content: requiredRoleMessage,
+        ephemeral: true,
+      })
+      return
+    }
+
+    let originalMessage: Message | undefined
+    try {
+      originalMessage = await interaction.message.fetch()
+    } catch (e) {
+      if (e instanceof DiscordAPIError && e.code === 10008) {
+        originalMessage = undefined
+      } else {
+        throw e
+      }
+    }
+
     const channel = await interaction.guild?.channels.fetch(channelId)
     if (!channel || !channel.isTextBased()) return
     let message: Message<true>
@@ -168,12 +218,17 @@ export class Announce extends Command {
     } catch (e) {
       if (e instanceof DiscordAPIError && e.code === 10008) {
         await interaction.reply({ content: `Original announcement message not found!`, ephemeral: true })
+        await originalMessage?.delete()
         return
       }
       throw e
     }
     await message.delete()
-    await interaction.reply({ content: `Message deleted!`, ephemeral: true })
+    if (originalMessage) {
+      await originalMessage.delete()
+    } else {
+      await interaction.reply({ content: `Message deleted!`, ephemeral: true })
+    }
   }
 
   override onLoad() {

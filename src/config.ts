@@ -48,6 +48,8 @@ export interface AnnounceCommandConfig {
 
   requiredRoles?: Snowflake[]
 
+  auditLogChannelId: Snowflake
+
   commandName: string
   commandDescription: string
 }

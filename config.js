@@ -14,6 +14,7 @@ const Roles = {
 const GuildID = "260103071017730048"
 const Channels = {
   SrcAnnouncements: "1313654063526580255",
+  SrcBotSpam: "1316945495997812788",
 }
 
 /** @type {Config} */
@@ -24,6 +25,8 @@ const config = {
     idHints: ["1316945027116564564"],
 
     requiredRoles: [Roles.SrcAdmin],
+
+    auditLogChannelId: Channels.SrcBotSpam,
 
     commandName: "announce",
     commandDescription: "Send a message to a channel, as the bot.",
