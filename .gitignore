@@ -2,5 +2,6 @@
 *.iml
 node_modules/
 .env
+out
 dist
 database.sqlite

@@ -1,15 +1,15 @@
 {
   "name": "factorio-src-bot",
   "private": true,
-  "main": "dist/main.js",
   "scripts": {
-    "build": "tsc",
-    "clean": "rm -rf dist",
-    "dev": "NODE_ENV=development node --watch dist/main.js",
+    "clean": "rm -rf out/",
+    "build": "npm run clean && tsc && npm run copy-to-dist",
     "watch": "tsc -w",
+    "dev": "NODE_ENV=development node --watch out/main.js",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
     "check": "npm run lint && tsc --noEmit",
+    "copy-to-dist": "rm -rf dist/ && cp -r src/ dist/",
     "pm2:start": "pm2 startOrRestart ecosystem.config.cjs"
   },
   "type": "module",
