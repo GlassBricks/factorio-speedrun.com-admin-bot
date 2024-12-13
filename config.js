@@ -18,7 +18,7 @@ const Channels = {
 
 /** @type {Config} */
 const config = {
-  botName: "Factorio SRC Admin Bot",
+  botName: "Factorio SRC Team",
   announceCommand: {
     guildIds: [GuildID],
     idHints: ["1316945027116564564"],
