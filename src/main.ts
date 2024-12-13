@@ -1,13 +1,13 @@
 import { Events, GatewayIntentBits, Partials } from "discord.js"
-import { config } from "dotenv"
+import { config as dotEnvConfig } from "dotenv"
 import { LogLevel, SapphireClient } from "@sapphire/framework"
 import { sequelize } from "./db/index.js"
 
 import "@sapphire/plugin-subcommands/register"
 import { setUpVoteInitiateCommand } from "./vote-initiate.js"
-import type { Config } from "./config.js"
+import config from "./config.js"
 
-config()
+dotEnvConfig()
 
 const dev = process.env.NODE_ENV === "development"
 
@@ -27,17 +27,14 @@ const client = new SapphireClient({
   },
 })
 
-const configPath = process.cwd() + "/config.js"
-const theConfig: Config = ((await import(configPath)) as { default: Config }).default
-
-if (theConfig.botName) {
+if (config.botName) {
   client.once(Events.ClientReady, (client) => {
     client.logger.info("Bot is ready")
-    void client.user.setUsername(theConfig.botName!)
+    void client.user.setUsername(config.botName!)
   })
 }
 
-setUpVoteInitiateCommand(client, theConfig.voteInitiateCommands)
+setUpVoteInitiateCommand(client, config.voteInitiateCommands)
 
 await sequelize.sync()
 client.logger.info("Database synced")

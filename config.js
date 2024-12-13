@@ -7,13 +7,28 @@ const reelectDescription =
 If the no-confidence vote is initiated and receives a 2/3 majority, the current admin team is dismissed and reelections are held.\n\n` +
   moreInfoDescription
 
+const Roles = {
+  SrcAdmin: "1201289542200733766",
+  Speedrunner: "316699796276641792",
+}
+const GuildID = "260103071017730048"
+
 /** @type {Config} */
 const config = {
   botName: "Factorio SRC Admin Bot",
+  announceCommand: {
+    guildIds: [GuildID],
+    idHints: ["1316945027116564564"],
+
+    requiredRoles: [Roles.SrcAdmin],
+
+    commandName: "announce",
+    commandDescription: "Send a message to a channel, as the bot.",
+  },
   voteInitiateCommands: [
     {
       id: "initiate_no_confidence_vote",
-      guildIds: ["260103071017730048"],
+      guildIds: [GuildID],
       idHints: ["1315074989916946556"],
 
       commandName: "initiate_no_confidence_vote",
@@ -27,7 +42,7 @@ A message will be created in %c. If %n reacts are received within %h hours, ` + 
       alreadyRunningMessage: "There is already an active initiation message here: ",
 
       postChannelId: "1313654063526580255",
-      postNotifyRoles: ["316699796276641792"],
+      postNotifyRoles: [Roles.Speedrunner],
       postMessage:
         `**No-confidence vote initiation**
 If %n %r reacts are received %e, ` + reelectDescription,
@@ -36,10 +51,11 @@ If %n %r reacts are received %e, ` + reelectDescription,
       reactsRequired: 10,
       durationHours: 24 * 3,
 
-      passedNotifyRoles: ["316699796276641792"],
+      passedNotifyRoles: [Roles.Speedrunner],
       failedMessage:
         "**No-confidence vote initiation**\n*Failed: did not get enough reacts by %e.*\n\n" + moreInfoDescription,
-      passedMessage: "A no-confidence vote has been initiated.\n<@&1201289542200733766> please set up the vote.",
+      passedMessage: `A no-confidence vote has been initiated.
+<@&${Roles.SrcAdmin}> please set up the vote.`,
     },
   ],
   autoReact: [

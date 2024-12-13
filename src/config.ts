@@ -3,14 +3,15 @@ import { Snowflake } from "discord.js"
 export interface Config {
   botName?: string
   voteInitiateCommands?: VoteInitiateCommandConfig[]
+  announceCommand?: AnnounceCommandConfig
   autoReact?: AutoReactConfig[]
 }
 
 export interface VoteInitiateCommandConfig {
   id: string
 
-  idHints: string[] | undefined
   guildIds: Snowflake[]
+  idHints: string[] | undefined
 
   commandName: string
   commandDescription: string
@@ -39,6 +40,16 @@ export interface AutoReactConfig {
   channels?: Snowflake[]
   regex: string
   reactions: string[]
+}
+
+export interface AnnounceCommandConfig {
+  guildIds?: Snowflake[]
+  idHints: string[] | undefined
+
+  requiredRoles?: Snowflake[]
+
+  commandName: string
+  commandDescription: string
 }
 
 const config: Config = ((await import(process.cwd() + "/config.js")) as { default: Config }).default
