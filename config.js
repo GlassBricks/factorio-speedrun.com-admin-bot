@@ -1,5 +1,15 @@
 /** @typedef {import("./src/config.ts").Config} Config */
 
+const GuildID = "260103071017730048"
+const Roles = {
+  SrcAdmin: "1201289542200733766",
+  Speedrunner: "316699796276641792",
+}
+const Channels = {
+  SrcAnnouncements: "1313654063526580255",
+  TranscriptsAndLogs: "1313648404232015892",
+}
+
 const moreInfoDescription =
   "More info: https://discord.com/channels/260103071017730048/390245480036040704/1311861862459244565 Option 2"
 const reelectDescription =
@@ -7,29 +17,23 @@ const reelectDescription =
 If the no-confidence vote is initiated and receives a 2/3 majority, the current admin team is dismissed and reelections are held.\n\n` +
   moreInfoDescription
 
-const Roles = {
-  SrcAdmin: "1201289542200733766",
-  Speedrunner: "316699796276641792",
-}
-const GuildID = "260103071017730048"
-const Channels = {
-  SrcAnnouncements: "1313654063526580255",
-  SrcBotSpam: "1316945495997812788",
-}
-
 /** @type {Config} */
 const config = {
   botName: "SRC Admin Team",
   announceCommand: {
     guildIds: [GuildID],
-    idHints: ["1316945027116564564"],
+
+    announceToCommandName: "announce_to",
+    announceToDescription: "Send a message to the announcements channel as the bot.",
+    announceToIdHint: ["1316945027116564564"],
+
+    announceCommandName: "announce",
+    announceDescription: "Send a message to a specified channel as the bot.",
+    announceIdHint: ["1320472656222617662"],
 
     requiredRoles: [Roles.SrcAdmin],
-
-    auditLogChannelId: Channels.SrcBotSpam,
-
-    commandName: "announce",
-    commandDescription: "Send a message to a channel, as the bot.",
+    announceChannelId: Channels.SrcAnnouncements,
+    auditLogChannelId: Channels.TranscriptsAndLogs,
   },
   voteInitiateCommands: [
     {
@@ -66,14 +70,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
   ],
   autoReact: [
     {
-      onBotMention: false,
-      users: ["204512563197640704"],
-      channels: ["1204051483872727150"],
-      regex: "\\d+\\.\\d+\\.\\d+",
-      reactions: ["🤖", "🎉"],
-    },
-    {
-      onBotMention: false,
+      onBotMention: true,
       users: ["691597162705977405"],
       regex: "apple|banana",
       reactions: ["🍌"],
