@@ -10,7 +10,6 @@ export interface Config {
 export interface AnnounceCommandConfig {
   guildIds?: Snowflake[]
 
-
   announceToCommandName: string
   announceToDescription: string
   announceToIdHint: string[] | undefined
