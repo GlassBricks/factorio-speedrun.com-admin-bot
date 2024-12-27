@@ -26,11 +26,11 @@ const config = {
     guildIds: [GuildID],
 
     announceToCommandName: "announce_to",
-    announceToDescription: "Send a message to the announcements channel as the bot.",
+    announceToDescription: `Send a message to <#${Channels.SrcAnnouncements}> as the bot. Use 2 or more spaces for a newline.`,
     announceToIdHint: ["1316945027116564564"],
 
     announceCommandName: "announce",
-    announceDescription: "Send a message to a specified channel as the bot.",
+    announceDescription: "Send a message to a specified channel as the bot. Use 2 or more spaces for a newline.",
     announceIdHint: ["1320472656222617662"],
 
     requiredRoles: [Roles.SrcAdmin],
@@ -74,7 +74,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
     {
       fromChannelId: Channels.SrcDiscussionContact,
       toChannelId: Channels.TicketRelay,
-      dmMessage: "You sent a message to %f. This was relayed to the SRC Admin Team.\n\n%m",
+      dmMessage: "You sent a message to %f; this was relayed to the SRC Admin Team.\n\n%m",
       relayMessage: "%u sent a message to %f:\n\n%m",
     },
   ],

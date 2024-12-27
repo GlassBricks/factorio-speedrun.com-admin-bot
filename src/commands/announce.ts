@@ -81,7 +81,7 @@ abstract class BaseAnnounce extends Command {
     interaction: ChatInputCommandInteraction<"cached">,
     channel: AnnouncementChannel,
   ): Promise<void> {
-    const messageContent = interaction.options.getString("message", true)
+    const messageContent = interaction.options.getString("message", true).replaceAll(/ {2,}/g, "\n")
     let message: Message
     try {
       message = await channel.send(messageContent)
@@ -128,7 +128,7 @@ abstract class BaseAnnounce extends Command {
         components: [deleteButton],
       }),
       interaction.reply({
-        content: `Message created: ${message.url}.\n*Announcement logged in <#${auditLogChannel.id}>. See the log message to delete the announcement*`,
+        content: `Message created: ${message.url}.\n*Logged in <#${auditLogChannel.id}>. See the log message to delete the message*`,
         ephemeral: true,
       }),
     ])
