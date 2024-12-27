@@ -26,7 +26,7 @@ const config = {
     guildIds: [GuildID],
 
     announceToCommandName: "announce_to",
-    announceToDescription: `Send a message to <#${Channels.SrcAnnouncements}> as the bot. Use 2 or more spaces for a newline.`,
+    announceToDescription: `Send a message to #src-announcements as the bot. Use 2 or more spaces for a newline.`,
     announceToIdHint: ["1316945027116564564"],
 
     announceCommandName: "announce",
