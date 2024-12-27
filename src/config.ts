@@ -5,6 +5,7 @@ export interface Config {
   announceCommand?: AnnounceCommandConfig
   voteInitiateCommands?: VoteInitiateCommandConfig[]
   autoReact?: AutoReactConfig[]
+  messageRelay?: MessageRelayConfig[]
 }
 
 export interface AnnounceCommandConfig {
@@ -55,6 +56,13 @@ export interface AutoReactConfig {
   channels?: Snowflake[]
   regex: string
   reactions: string[]
+}
+
+export interface MessageRelayConfig {
+  fromChannelId: Snowflake
+  toChannelId: Snowflake
+  dmMessage?: string
+  relayMessage: string
 }
 
 const config: Config = ((await import(process.cwd() + "/config.js")) as { default: Config }).default

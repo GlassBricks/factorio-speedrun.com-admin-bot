@@ -8,6 +8,8 @@ const Roles = {
 const Channels = {
   SrcAnnouncements: "1313654063526580255",
   TranscriptsAndLogs: "1313648404232015892",
+  SrcDiscussionContact: "1313675268392489053",
+  TicketRelay: "1322336566705655838",
 }
 
 const moreInfoDescription =
@@ -66,6 +68,14 @@ If %n %r reacts are received %e, ` + reelectDescription,
         "**No-confidence vote initiation**\n*Failed: did not get enough reacts by %e.*\n\n" + moreInfoDescription,
       passedMessage: `A no-confidence vote has been initiated.
 <@&${Roles.SrcAdmin}> please set up the vote.`,
+    },
+  ],
+  messageRelay: [
+    {
+      fromChannelId: Channels.SrcDiscussionContact,
+      toChannelId: Channels.TicketRelay,
+      dmMessage: "You sent a message to %f. This was relayed to the SRC Admin Team.\n\n%m",
+      relayMessage: "%u sent a message to %f:\n\n%m",
     },
   ],
   autoReact: [
