@@ -1,5 +1,5 @@
-import { getAllRuns, getGame, Run } from "src-ts"
-import { SrcSubmissionProcessing } from "../db/index.js"
+import { getAllRuns, getGame, Player, PlayerUser, Run } from "src-ts"
+import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
 import { Client, Events, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config.js"
 import { botCanSendInChannel } from "../utils.js"
@@ -14,26 +14,31 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
     })
 }
 
-type EmbedRun = Run<"category,players">
-
-function formatDuration(duration: Duration) {
-  let result = ""
-  if (duration.years) result += `${duration.years}y`
-  if (duration.months) result += `${duration.months}m`
-  if (duration.days) result += `${duration.days}d`
-  if (duration.hours) result += `${duration.hours}h`
-  if (duration.minutes) result += `${duration.minutes}m`
-  if (duration.seconds) result += `${duration.seconds}s`
-  return result
-}
+type RunWithEmbeds = Run<"category,players">
 
 function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
+  const baseLogger = createLogger("[AnnounceSrcSubmissions]", client.logger)
   scheduleJob("processSrcSubmissions", config.cronSchedule, processAllGamesLogging)
     // Run once on startup
     .invoke()
 
+  async function processAllGamesLogging() {
+    try {
+      await processAllGames()
+    } catch (e) {
+      baseLogger.error("Error processing submissions", e)
+    }
+  }
+
+  async function processAllGames() {
+    await maybeInitKnownRunners()
+    for (const gameId of config.srcGameIds) {
+      await processRuns(gameId)
+    }
+  }
+
   async function processRuns(gameIdOrName: string) {
-    client.logger.info("[AnnounceSrcSubmissions] Processing submissions, id or name:", gameIdOrName)
+    baseLogger.info("Processing submissions, id or name:", gameIdOrName)
     const game = await getGame(gameIdOrName)
     const gameName = game.names.international
     const gameId = game.id
@@ -55,16 +60,32 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       return
     }
 
-    logger.info(`Processing ${allRuns.length} new runs`)
     for (const run of allRuns) {
-      await processRun(run)
+      await processNewRun(run)
     }
     logger.info("All runs processed")
 
-    async function processRun(run: EmbedRun) {
+    async function processNewRun(run: RunWithEmbeds) {
+      logger.info("Processing run", run.id)
+      const players = getPlayers(run)
+      const [storedRun, alreadyExists] = await SrcRun.findOrBuild({
+        where: { runId: run.id },
+        defaults: { runId: run.id, lastStatus: SrcRunStatus.New },
+      })
+      if (alreadyExists && storedRun.messageId !== undefined) {
+        // todo
+        return
+      }
+
+      const newPlayers = (await players).filter((x) => !x.player.hasVerifiedRun)
+      const newPlayersMessage =
+        newPlayers.length > 0
+          ? `\n**🎉 First time submission for:** ${newPlayers.map((x) => x.srcPlayer.names.international).join(", ")}\n`
+          : ""
+
       const playersPrefix = run.players.data.length > 1 ? "Players" : "Player"
       const playerNames = run.players.data
-        .map((player) => (player.rel == "user" ? player.names.international : player.name))
+        .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
         .join(", ")
 
       const categoryName = Array.isArray(run.category.data) ? "Unknown category" : run.category.data.name
@@ -73,54 +94,92 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 
       const submissionDate = new Date(run.submitted!)
       const dateSeconds = Math.floor(submissionDate.getTime() / 1000)
-
       const message = `
-New speedrun.com submission!
+## New speedrun.com submission!${newPlayersMessage}
 **Game/Category**: ${gameName} / ${categoryName}
 **${playersPrefix}**: ${playerNames}
 **Run time**: ${runTime}
+**Place**: ${run.weblink}
 **Submission date**: <t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
 ${run.weblink}
 `
-      await Promise.all([
-        theChannel.send(message),
-        SrcSubmissionProcessing.saveLastProcessedTime(gameId, new Date(run.submitted!)),
-      ])
+      const discordMessage = await theChannel.send(message)
+
+      storedRun.messageId = discordMessage.id
+      storedRun.messageChannelId = discordMessage.channelId
+
+      storedRun.save().catch((e) => logger.error(e))
+
       logger.info(`Processed run ${run.id} by ${playerNames}`)
     }
   }
 
-  async function processAllGames() {
-    for (const gameId of config.srcGameIds) {
-      await processRuns(gameId)
+  async function getPlayers(run: RunWithEmbeds): Promise<{ player: SrcPlayer; srcPlayer: PlayerUser }[]> {
+    const playerUser: PlayerUser[] = run.players.data.filter((x): x is Player & { rel: "user" } => x.rel === "user")
+    const players = await SrcPlayer.findAll({ where: { userId: playerUser.map((x) => x.id) } })
+    const newPlayerUsers = playerUser.filter((x) => !players.some((p) => p.userId === x.id))
+    if (newPlayerUsers.length > 0) {
+      const newPlayers = await SrcPlayer.bulkCreate(
+        newPlayerUsers.map((x) => ({
+          userId: x.id,
+          hasVerifiedRun: false,
+        })),
+        { returning: true },
+      )
+      players.push(...newPlayers)
     }
+    return players.map((player) => ({
+      player,
+      srcPlayer: playerUser.find((x) => x.id === player.userId)!,
+    }))
   }
 
-  async function processAllGamesLogging() {
-    try {
-      await processAllGames()
-    } catch (e) {
-      client.logger.error("[AnnounceSrcSubmissions] Error processing submissions", e)
-    }
-  }
-}
-
-async function getUnprocessedRuns(gameId: string): Promise<EmbedRun[]> {
-  const lastProcessedTimestamp = await SrcSubmissionProcessing.getLastProcessedTime(gameId)
-  const runs: EmbedRun[] = await getAllRuns(
-    {
+  async function getUnprocessedRuns(gameId: string): Promise<RunWithEmbeds[]> {
+    const runs: RunWithEmbeds[] = await getAllRuns({
       game: gameId,
       orderby: "date",
       direction: "desc",
       status: "new",
       embed: "category,players",
-    },
-    {
-      map: (run) => {
-        if (!run.submitted || new Date(run.submitted) <= lastProcessedTimestamp) return undefined
-        return run
-      },
-    },
-  )
-  return runs.reverse()
+    })
+    return runs.reverse()
+  }
+
+  async function maybeInitKnownRunners() {
+    if (await SrcPlayer.count()) return
+    baseLogger.info(`Initializing table ${SrcPlayer.tableName}`)
+    const users = new Set<string>()
+    const usersWithVerifiedRuns = new Set<string>()
+    for (const gameId of config.srcGameIds) {
+      const game = await getGame(gameId)
+      const runs = await getAllRuns({ game: game.id, max: 200 })
+      for (const run of runs) {
+        const verified = run.status.status === "verified"
+        for (const player of run.players) {
+          if (player.rel === "user") {
+            users.add(player.id)
+            if (verified) usersWithVerifiedRuns.add(player.id)
+          }
+        }
+      }
+    }
+    baseLogger.info(`Found ${users.size} users`)
+    await SrcPlayer.bulkCreate(
+      Array.from(users).map((id) => ({
+        userId: id,
+        hasVerifiedRun: usersWithVerifiedRuns.has(id),
+      })),
+    )
+  }
+}
+
+function formatDuration(duration: Duration) {
+  let result = ""
+  if (duration.years) result += `${duration.years}y`
+  if (duration.months) result += `${duration.months}m`
+  if (duration.days) result += `${duration.days}d`
+  if (duration.hours) result += `${duration.hours}h`
+  if (duration.minutes) result += `${duration.minutes}m`
+  if (duration.seconds) result += `${duration.seconds}s`
+  return result
 }
