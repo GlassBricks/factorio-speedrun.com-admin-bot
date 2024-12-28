@@ -4,8 +4,9 @@ export interface Config {
   botName?: string
   announceCommand?: AnnounceCommandConfig
   voteInitiateCommands?: VoteInitiateCommandConfig[]
-  autoReact?: AutoReactConfig[]
   messageRelay?: MessageRelayConfig[]
+  announceNewFactorioVersion?: AnnounceFactorioVersionConfig
+  autoReact?: AutoReactConfig[]
 }
 
 export interface AnnounceCommandConfig {
@@ -63,6 +64,12 @@ export interface MessageRelayConfig {
   toChannelId: Snowflake
   dmMessage?: string
   relayMessage: string
+}
+
+export interface AnnounceFactorioVersionConfig {
+  guildId: Snowflake
+  channelId: Snowflake
+  cronSchedule: string
 }
 
 const config: Config = ((await import(process.cwd() + "/config.js")) as { default: Config }).default

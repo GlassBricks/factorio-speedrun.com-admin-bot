@@ -1,5 +1,3 @@
-/** @typedef {import("./src/config.ts").Config} Config */
-
 const GuildID = "260103071017730048"
 const Roles = {
   SrcAdmin: "1201289542200733766",
@@ -9,7 +7,8 @@ const Channels = {
   SrcAnnouncements: "1313654063526580255",
   TranscriptsAndLogs: "1313648404232015892",
   SrcDiscussionContact: "1313675268392489053",
-  TicketRelay: "1322336566705655838",
+  FeedbackRelay: "1322336566705655838",
+  RunAdministration: "1201292109332885584",
 }
 
 const moreInfoDescription =
@@ -19,6 +18,7 @@ const reelectDescription =
 If the no-confidence vote is initiated and receives a 2/3 majority, the current admin team is dismissed and reelections are held.\n\n` +
   moreInfoDescription
 
+/** @typedef {import("./src/config.ts").Config} Config */
 /** @type {Config} */
 const config = {
   botName: "SRC Admin Team",
@@ -73,11 +73,16 @@ If %n %r reacts are received %e, ` + reelectDescription,
   messageRelay: [
     {
       fromChannelId: Channels.SrcDiscussionContact,
-      toChannelId: Channels.TicketRelay,
+      toChannelId: Channels.FeedbackRelay,
       dmMessage: "You sent a message to %f; this was relayed to the SRC Admin Team.\n%m",
       relayMessage: "%u:\n%m",
     },
   ],
+  announceNewFactorioVersion: {
+    guildId: GuildID,
+    channelId: Channels.RunAdministration,
+    cronSchedule: "*/30 * * * *",
+  },
   autoReact: [
     {
       onBotMention: true,

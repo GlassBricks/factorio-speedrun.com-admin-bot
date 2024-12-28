@@ -14,10 +14,10 @@ import {
   TextBasedChannel,
 } from "discord.js"
 import { ApplicationCommandRegistry, Command, container, ILogger, SapphireClient } from "@sapphire/framework"
-import { VoteInitiateCommandConfig } from "./config.js"
+import { VoteInitiateCommandConfig } from "../config.js"
 import { Job, scheduleJob } from "node-schedule"
-import { VoteInitiateMessage } from "./db/vote-initiate-message.js"
-import { createLogger } from "./logger.js"
+import { VoteInitiateMessage } from "../db/vote-initiate-message.js"
+import { createLogger } from "../logger.js"
 
 interface CurrentMessage {
   record: VoteInitiateMessage

@@ -4,8 +4,10 @@ import { LogLevel, SapphireClient } from "@sapphire/framework"
 import { sequelize } from "./db/index.js"
 
 import "@sapphire/plugin-subcommands/register"
-import { setUpVoteInitiateCommand } from "./vote-initiate.js"
 import config from "./config.js"
+
+import { setUpVoteInitiateCommand } from "./other-components/vote-initiate.js"
+import { setUpAnnounceFactorioVersion } from "./other-components/announce-factorio-version.js"
 
 dotEnvConfig()
 
@@ -35,6 +37,7 @@ if (config.botName) {
 }
 
 setUpVoteInitiateCommand(client, config.voteInitiateCommands)
+setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
 
 await sequelize.sync()
 client.logger.info("Database synced")
