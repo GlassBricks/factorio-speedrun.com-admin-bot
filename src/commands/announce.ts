@@ -3,25 +3,26 @@ import { ApplyOptions } from "@sapphire/decorators"
 import config from "../config.js"
 import {
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
   Channel,
   ChannelType,
   ChatInputCommandInteraction,
-  ComponentType,
+  GuildBasedChannel,
   GuildMember,
   InteractionContextType,
-  Message,
+  ModalActionRowComponentBuilder,
+  ModalBuilder,
   NewsChannel,
   PermissionFlagsBits,
   SlashCommandBuilder,
   Snowflake,
   TextChannel,
+  TextInputBuilder,
+  TextInputStyle,
 } from "discord.js"
-import { createLogger } from "../logger.js"
 
 export const textBasedChannels = [ChannelType.GuildText, ChannelType.GuildAnnouncement] as const
 export const DeleteOwnMessageIdPrefix = "announce.deleteOwnMessage:"
+export const CreateAnnouncementModalIdPrefix = "announce.createAnnouncementModal:"
 export type AnnouncementChannel = Extract<Channel, { type: (typeof textBasedChannels)[number] }>
 
 export function hasRequiredRolesForAnnounce(user: GuildMember | undefined): string | undefined {
@@ -33,8 +34,6 @@ export function hasRequiredRolesForAnnounce(user: GuildMember | undefined): stri
 }
 
 abstract class BaseAnnounce extends Command {
-  protected logger = createLogger("[Announce]")
-
   abstract configureCommandOptions(b: SlashCommandBuilder): void
 
   abstract getChannel(interaction: ChatInputCommandInteraction): Promise<TextChannel | NewsChannel | undefined>
@@ -74,64 +73,38 @@ abstract class BaseAnnounce extends Command {
       return
     }
     if (!(await this.canAnnounce(interaction, channel))) return
-    return this.createMessage(interaction, channel)
+    return this.createModal(interaction, channel)
   }
 
-  private async createMessage(
-    interaction: ChatInputCommandInteraction<"cached">,
-    channel: AnnouncementChannel,
-  ): Promise<void> {
-    const messageContent = interaction.options.getString("message", true).replaceAll(/ {2,}/g, "\n")
-    let message: Message
+  private async createModal(interaction: ChatInputCommandInteraction<"cached">, channel: AnnouncementChannel) {
+    const channelName = channel.name
+    const modal = new ModalBuilder()
+      .setCustomId(`${CreateAnnouncementModalIdPrefix}${channel.id}`)
+      .setTitle(`Create announcement to ${channelName}`)
+      .addComponents(
+        new ActionRowBuilder<ModalActionRowComponentBuilder>().addComponents(
+          new TextInputBuilder()
+            .setCustomId("message")
+            .setLabel("Message")
+            .setStyle(TextInputStyle.Paragraph)
+            .setMaxLength(2000)
+            .setRequired(true),
+        ),
+      )
+
+    await interaction.showModal(modal)
+    // The rest is handled in ./listeners/announce-handler.ts
+  }
+
+  protected async tryGetChannel(
+    interaction: ChatInputCommandInteraction,
+    channelId: Snowflake,
+  ): Promise<GuildBasedChannel | null> {
     try {
-      message = await channel.send(messageContent)
-      this.logger.info("Announcement created", message.url)
-    } catch (error: unknown) {
-      this.logger.error(error)
-      const message = error instanceof Error ? error.message : "Unknown error"
-      await interaction.reply({
-        content: `Error trying to send message: ${message}. Contact a developer you think this is a bug.`,
-        ephemeral: true,
-      })
-      return
+      return await interaction.guild!.channels.fetch(channelId)
+    } catch {
+      return null
     }
-
-    const deleteButton = new ActionRowBuilder<ButtonBuilder>({
-      components: [
-        {
-          type: ComponentType.Button,
-          custom_id: `${DeleteOwnMessageIdPrefix}${message.channel.id},${message.id}`,
-          label: "Delete announcement",
-          style: ButtonStyle.Danger,
-        },
-      ],
-    })
-
-    const auditLogChannel = await interaction.guild.channels.fetch(config.announceCommand!.auditLogChannelId)
-    if (
-      !auditLogChannel ||
-      !auditLogChannel.isTextBased() ||
-      !(textBasedChannels as readonly ChannelType[]).includes(auditLogChannel.type) ||
-      !(await this.canSendInChannel(auditLogChannel as AnnouncementChannel))
-    ) {
-      await interaction.reply({
-        content: `Announcement created: ${message.url}.\n*Announcement log channel is invalid! Check it exists and bot has permission to send messages to it.*`,
-        components: [deleteButton],
-        ephemeral: true,
-      })
-      return
-    }
-
-    await Promise.all([
-      auditLogChannel.send({
-        content: `<@${interaction.user.id}> used /${this.options.name}: ${message.url}`,
-        components: [deleteButton],
-      }),
-      interaction.reply({
-        content: `Message created: ${message.url}.\n*Logged in <#${auditLogChannel.id}>. See the log message to delete the message*`,
-        ephemeral: true,
-      }),
-    ])
   }
 
   private async canAnnounce(
@@ -167,18 +140,35 @@ abstract class BaseAnnounce extends Command {
     }
     if (!(await this.canSendInChannel(channel))) {
       await interaction.reply({
-        content: `<@${interaction.client.user.id}> doesn't have permission to send messages in that channel. Please add me!`,
+        content: `<@${interaction.client.user.id}> doesn't have permission to send messages to <#${channel.id}>. Please add me!`,
         ephemeral: true,
       })
       return false
     }
+    const logChannel = await this.tryGetChannel(interaction, config.announceCommand!.auditLogChannelId)
+    if (!logChannel) {
+      await interaction.reply({
+        content: `Bot couldn't find the _logs_ channel! Contact a developer/administrator if you think this is a bug.`,
+        ephemeral: true,
+      })
+      return false
+    }
+    if (!(await this.canSendInChannel(logChannel))) {
+      await interaction.reply({
+        content: `<@${interaction.client.user.id}> doesn't have permission to send messages to <#${logChannel.id}>. Please add me!`,
+        ephemeral: true,
+      })
+    }
     return true
   }
 
-  private async canSendInChannel(channel: AnnouncementChannel) {
-    return channel
-      .permissionsFor(await channel.guild.members.fetchMe())
-      .has(PermissionFlagsBits.SendMessages | PermissionFlagsBits.ViewChannel, true)
+  private async canSendInChannel(channel: GuildBasedChannel) {
+    return (
+      channel.isTextBased() &&
+      channel
+        .permissionsFor(await channel.guild.members.fetchMe())
+        .has(PermissionFlagsBits.SendMessages | PermissionFlagsBits.ViewChannel, true)
+    )
   }
 }
 
@@ -226,7 +216,7 @@ export class Announce extends BaseAnnounce {
   }
 
   async getChannel(interaction: ChatInputCommandInteraction): Promise<TextChannel | NewsChannel | undefined> {
-    const channel = await interaction.guild!.channels.fetch(config.announceCommand!.announceChannelId)
+    const channel = await this.tryGetChannel(interaction, config.announceCommand!.announceChannelId)
     if (!channel || !(textBasedChannels as readonly ChannelType[]).includes(channel.type)) return undefined
     return channel as TextChannel | NewsChannel
   }

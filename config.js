@@ -1,13 +1,13 @@
 /** @typedef {import("./src/config.ts").Config} Config */
 
-const GuildID = "260103071017730048"
+const GuildID = "1313690532953853992"
 const Roles = {
   SrcAdmin: "1201289542200733766",
   Speedrunner: "316699796276641792",
 }
 const Channels = {
   SrcAnnouncements: "1313654063526580255",
-  TranscriptsAndLogs: "1313648404232015892",
+  TranscriptsAndLogs: "1314039140169420830",
   SrcDiscussionContact: "1313675268392489053",
   TicketRelay: "1322336566705655838",
 }
@@ -27,13 +27,13 @@ const config = {
 
     announceToCommandName: "announce_to",
     announceToDescription: `Send a message to #src-announcements as the bot. Use 2 or more spaces for a newline.`,
-    announceToIdHint: ["1316945027116564564"],
+    // announceToIdHint: ["1316945027116564564"],
 
     announceCommandName: "announce",
     announceDescription: "Send a message to a specified channel as the bot. Use 2 or more spaces for a newline.",
-    announceIdHint: ["1320472656222617662"],
+    // announceIdHint: ["1320472656222617662"],
 
-    requiredRoles: [Roles.SrcAdmin],
+    // requiredRoles: [Roles.SrcAdmin],
     announceChannelId: Channels.SrcAnnouncements,
     auditLogChannelId: Channels.TranscriptsAndLogs,
   },
@@ -41,7 +41,7 @@ const config = {
     {
       id: "initiate_no_confidence_vote",
       guildIds: [GuildID],
-      idHints: ["1315074989916946556"],
+      // idHints: ["1315074989916946556"],
 
       commandName: "initiate_no_confidence_vote",
       commandDescription:
@@ -74,8 +74,8 @@ If %n %r reacts are received %e, ` + reelectDescription,
     {
       fromChannelId: Channels.SrcDiscussionContact,
       toChannelId: Channels.TicketRelay,
-      dmMessage: "You sent a message to %f; this was relayed to the SRC Admin Team.\n\n%m",
-      relayMessage: "%u sent a message to %f:\n\n%m",
+      dmMessage: "You sent a message to %f; this was relayed to the SRC Admin Team.\n%m",
+      relayMessage: "%u:\n%m",
     },
   ],
   autoReact: [
