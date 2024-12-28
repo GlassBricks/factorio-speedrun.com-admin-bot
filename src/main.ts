@@ -6,6 +6,7 @@ import { sequelize } from "./db/index.js"
 import config from "./config.js"
 import { setUpVoteInitiateCommand } from "./other-components/vote-initiate.js"
 import { setUpAnnounceFactorioVersion } from "./other-components/announce-factorio-version.js"
+import { setUpAnnounceSrcSubmissions } from "./other-components/announce-src-submissions.js"
 
 dotEnvConfig()
 
@@ -36,6 +37,7 @@ if (config.botName) {
 
 setUpVoteInitiateCommand(client, config.voteInitiateCommands)
 setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
+setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
 
 await sequelize.sync()
 client.logger.info("Database synced")

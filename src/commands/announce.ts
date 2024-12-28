@@ -19,6 +19,7 @@ import {
   TextChannel,
 } from "discord.js"
 import { createLogger } from "../logger.js"
+import { botCanSendInChannel } from "../utils.js"
 
 export const textBasedChannels = [ChannelType.GuildText, ChannelType.GuildAnnouncement] as const
 export const DeleteOwnMessageIdPrefix = "announce.deleteOwnMessage:"
@@ -112,7 +113,7 @@ abstract class BaseAnnounce extends Command {
       !auditLogChannel ||
       !auditLogChannel.isTextBased() ||
       !(textBasedChannels as readonly ChannelType[]).includes(auditLogChannel.type) ||
-      !(await this.canSendInChannel(auditLogChannel as AnnouncementChannel))
+      !(await botCanSendInChannel(auditLogChannel as AnnouncementChannel))
     ) {
       await interaction.reply({
         content: `Announcement created: ${message.url}.\n*Announcement log channel is invalid! Check it exists and bot has permission to send messages to it.*`,
@@ -165,7 +166,7 @@ abstract class BaseAnnounce extends Command {
       })
       return false
     }
-    if (!(await this.canSendInChannel(channel))) {
+    if (!(await botCanSendInChannel(channel))) {
       await interaction.reply({
         content: `<@${interaction.client.user.id}> doesn't have permission to send messages in that channel. Please add me!`,
         ephemeral: true,
@@ -173,12 +174,6 @@ abstract class BaseAnnounce extends Command {
       return false
     }
     return true
-  }
-
-  private async canSendInChannel(channel: AnnouncementChannel) {
-    return channel
-      .permissionsFor(await channel.guild.members.fetchMe())
-      .has(PermissionFlagsBits.SendMessages | PermissionFlagsBits.ViewChannel, true)
   }
 }
 

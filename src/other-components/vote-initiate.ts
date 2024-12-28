@@ -16,8 +16,8 @@ import {
 import { ApplicationCommandRegistry, Command, container, ILogger, SapphireClient } from "@sapphire/framework"
 import { VoteInitiateCommandConfig } from "../config.js"
 import { Job, scheduleJob } from "node-schedule"
-import { VoteInitiateMessage } from "../db/vote-initiate-message.js"
 import { createLogger } from "../logger.js"
+import { VoteInitiateMessage } from "../db/index.js"
 
 interface CurrentMessage {
   record: VoteInitiateMessage

@@ -79,9 +79,13 @@ If %n %r reacts are received %e, ` + reelectDescription,
     },
   ],
   announceNewFactorioVersion: {
-    guildId: GuildID,
     channelId: Channels.RunAdministration,
-    cronSchedule: "*/30 * * * *",
+    cronSchedule: "*/15 * * * *",
+  },
+  announceSrcSubmissions: {
+    channelId: Channels.RunAdministration,
+    srcGameIds: ["9d35xw1l", "ldewr7ed"],
+    cronSchedule: "*/15 * * * *",
   },
   autoReact: [
     {

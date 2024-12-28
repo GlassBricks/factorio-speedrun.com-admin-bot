@@ -1,8 +1,8 @@
 import { Client, Events, SendableChannels } from "discord.js"
-import { KnownFactorioVersion, VersionString } from "../db/known-factorio-version.js"
 import { scheduleJob } from "node-schedule"
 import { AnnounceFactorioVersionConfig } from "../config.js"
 import { createLogger } from "../logger.js"
+import { KnownFactorioVersion, VersionString } from "../db/index.js"
 
 export function setUpAnnounceFactorioVersion(client: Client, config: AnnounceFactorioVersionConfig | undefined) {
   if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config))
@@ -10,10 +10,12 @@ export function setUpAnnounceFactorioVersion(client: Client, config: AnnounceFac
 
 function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
   const logger = createLogger("[AnnounceFactorioVersion]")
-  logger.info("Setting up")
+  scheduleJob("checkFactorioVersion", config.cronSchedule, doCheckLogging)
+    // run once on startup
+    .invoke()
 
   async function getChannel(): Promise<SendableChannels> {
-    const channel = await (await client.guilds.fetch(config.guildId))?.channels.fetch(config.channelId)
+    const channel = await client.channels.fetch(config.channelId)
     if (!channel || !channel.isTextBased() || !channel.isSendable()) {
       throw new Error("Announce channel not found or not text-based!")
     }
@@ -54,13 +56,9 @@ function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
     try {
       await doCheck()
     } catch (error) {
-      console.error("Failed to check Factorio version:", error)
+      logger.error("Failed to check Factorio version:", error)
     }
   }
-
-  void doCheckLogging().finally(() => {
-    scheduleJob("checkFactorioVersion", config.cronSchedule, doCheckLogging)
-  })
 }
 
 const apiEndpoint = "https://factorio.com/api/latest-releases"
