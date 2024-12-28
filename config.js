@@ -74,8 +74,8 @@ If %n %r reacts are received %e, ` + reelectDescription,
     {
       fromChannelId: Channels.SrcDiscussionContact,
       toChannelId: Channels.TicketRelay,
-      dmMessage: "You sent a message to %f; this was relayed to the SRC Admin Team.\n\n%m",
-      relayMessage: "%u sent a message to %f:\n\n%m",
+      dmMessage: "You sent a message to %f; this was relayed to the SRC Admin Team.\n%m",
+      relayMessage: "%u:\n%m",
     },
   ],
   autoReact: [
