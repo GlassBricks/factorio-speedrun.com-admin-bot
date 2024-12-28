@@ -81,7 +81,7 @@ abstract class BaseAnnounce extends Command {
     interaction: ChatInputCommandInteraction<"cached">,
     channel: AnnouncementChannel,
   ): Promise<void> {
-    const messageContent = interaction.options.getString("message", true).replaceAll(/ {2,}/g, "\n")
+    const messageContent = interaction.options.getString("message", true).replaceAll("  ", "\n")
     let message: Message
     try {
       message = await channel.send(messageContent)
