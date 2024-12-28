@@ -3,9 +3,7 @@ import { config as dotEnvConfig } from "dotenv"
 import { LogLevel, SapphireClient } from "@sapphire/framework"
 import { sequelize } from "./db/index.js"
 
-import "@sapphire/plugin-subcommands/register"
 import config from "./config.js"
-
 import { setUpVoteInitiateCommand } from "./other-components/vote-initiate.js"
 import { setUpAnnounceFactorioVersion } from "./other-components/announce-factorio-version.js"
 
