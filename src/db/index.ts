@@ -52,6 +52,7 @@ export enum SrcRunStatus {
   New = 0,
   Verified = 1,
   Rejected = 2,
+  Unknown = 37,
 }
 
 @Table
@@ -63,6 +64,10 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   @Index
   @Column
   declare lastStatus: SrcRunStatus
+
+  @Column
+  @Index({ order: "DESC" })
+  declare submissionTime: Date
 
   @Column
   declare messageChannelId?: Snowflake
