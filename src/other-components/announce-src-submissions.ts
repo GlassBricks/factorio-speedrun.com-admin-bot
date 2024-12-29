@@ -1,16 +1,4 @@
-import {
-  Category,
-  Game,
-  getAllRuns,
-  getGame,
-  getLeaderboard,
-  getUser,
-  Leaderboard,
-  Player,
-  PlayerUser,
-  Run,
-  User,
-} from "src-ts"
+import { Category, getAllRuns, getLeaderboard, getUser, Leaderboard, Player, PlayerUser, Run, User } from "src-ts"
 import { SrcPlayer, SrcRun } from "../db/index.js"
 import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config.js"
@@ -52,14 +40,14 @@ const StatusMessage = {
 }
 
 // hardcoded for now
-function isChallengerRun(run: RunWithEmbeds, category: Category, place: number) {
-  if (category.name.toLowerCase().includes("category extensions")) {
+function isChallengerRun(run: RunWithEmbeds, category: Category | undefined, place: number) {
+  if (category?.name.toLowerCase().includes("category extensions")) {
     return place <= 3
   }
   return place <= 5
 }
 
-function findPlaceInLeaderboard(leaderboard: Leaderboard, run: RunWithEmbeds) {
+function findPlaceInLeaderboard(leaderboard: Leaderboard<"game,category">, run: RunWithEmbeds) {
   // find first run with slower time; this run replaces it
   const index = leaderboard.runs.findIndex((x) => x.run.times.primary_t > run.times.primary_t)
   if (index === -1) {
@@ -159,10 +147,9 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
   ) {
     logger.info("Creating message for run", run.id)
 
-    const game = await getGameCached(run.game)
-    const category = game.categories.data.find((x) => x.id === run.category)
-
-    const leaderboard = await getLeaderboard(run.game, run.category, run.values)
+    const leaderboard = await getLeaderboard(run.game, run.category, run.values, { embed: "game,category" })
+    const game = Array.isArray(leaderboard.game.data) ? undefined : leaderboard.game.data
+    const category = Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data
 
     const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
     const newPlayerMessage =
@@ -184,7 +171,8 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         .join(", ") + (run.players.data.length > 3 ? `, and ${run.players.data.length - 3} more` : "")
 
     const categoryName = category?.name ?? "Unknown category"
-    const gameName = config.games.find((x) => x.id === run.game)?.nickname ?? game.names.international
+    const gameName =
+      config.games.find((x) => x.id === run.game)?.nickname ?? game?.names.international ?? "Unknown game"
 
     const runTime = formatDuration(parse(run.times.primary))
 
@@ -347,16 +335,10 @@ function launch<T>(promise: Promise<T>) {
   void logErrors(promise)
 }
 
-const gameCache = new Map<string, Promise<Game<"categories">>>()
 const userCache = new Map<string, Promise<User>>()
 
 function clearCaches() {
-  gameCache.clear()
   userCache.clear()
-}
-
-function getGameCached(gameId: string) {
-  return getCached(gameId, gameCache, (id) => getGame(id, { embed: "categories" }))
 }
 
 function getUserCached(userId: string) {
