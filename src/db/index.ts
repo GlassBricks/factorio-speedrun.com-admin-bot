@@ -76,9 +76,10 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   declare messageId?: Snowflake
 }
 
+const dev = process.env.NODE_ENV === "development"
 export const sequelize = new Sequelize({
   dialect: "sqlite",
-  // storage: dev ? ":memory:" : "database.sqlite",
-  storage: "database.sqlite",
+  storage: dev ? ":memory:" : "database.sqlite",
+  // storage: "database.sqlite",
   models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun],
 })

@@ -66,7 +66,10 @@ export interface AnnounceFactorioVersionConfig {
 
 export interface AnnounceSrcSubmissionsConfig {
   channelId: Snowflake
-  srcGameIds: string[]
+  games: {
+    id: string
+    nickname?: string
+  }[]
   cronSchedule: string
   announceNewPlayersMessage?: string
 }

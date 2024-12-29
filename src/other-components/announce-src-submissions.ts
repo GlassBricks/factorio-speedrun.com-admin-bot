@@ -1,8 +1,27 @@
-import { Game, getAllRuns, getGame, getUser, Player, PlayerUser, Run, User } from "src-ts"
+import {
+  Category,
+  Game,
+  getAllRuns,
+  getGame,
+  getLeaderboard,
+  getUser,
+  Leaderboard,
+  Player,
+  PlayerUser,
+  Run,
+  User,
+} from "src-ts"
 import { SrcPlayer, SrcRun } from "../db/index.js"
 import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config.js"
-import { botCanSendInChannel, editLine, formatDuration, getAllRunsSince, statusStrToStatus } from "../utils.js"
+import {
+  botCanSendInChannel,
+  editLine,
+  formatDuration,
+  formatPlace,
+  getAllRunsSince,
+  statusStrToStatus,
+} from "../utils.js"
 import { createLogger } from "../logger.js"
 import { scheduleJob } from "node-schedule"
 import { parse } from "iso8601-duration"
@@ -32,6 +51,23 @@ const StatusMessage = {
   rejected: "❌ Rejected by %p",
 }
 
+// hardcoded for now
+function isChallengerRun(run: RunWithEmbeds, category: Category, place: number) {
+  if (category.name.toLowerCase().includes("category extensions")) {
+    return place <= 3
+  }
+  return place <= 5
+}
+
+function findPlaceInLeaderboard(leaderboard: Leaderboard, run: RunWithEmbeds) {
+  // find first run with slower time; this run replaces it
+  const index = leaderboard.runs.findIndex((x) => x.run.times.primary_t > run.times.primary_t)
+  if (index === -1) {
+    return leaderboard.runs.length + 1
+  }
+  return index + 1
+}
+
 const logger = createLogger("[AnnounceSrcSubmissions]")
 
 function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
@@ -50,7 +86,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     }
 
     logger.info("Finding runs")
-    const allRuns = (await Promise.all(config.srcGameIds.map((gameId) => getUnprocessedRuns(gameId))))
+    const allRuns = (await Promise.all(config.games.map((game) => getUnprocessedRuns(game.id))))
       .flatMap((x) => [...x.values()])
       .filter((run) => run.submitted)
 
@@ -115,6 +151,62 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     launch(updateMessage())
   }
 
+  async function createRunMessage(
+    run: RunWithEmbeds,
+    storedRun: SrcRun,
+    players: PlayerWithDbPlayer[],
+    notifyChannel: SendableChannels,
+  ) {
+    logger.info("Creating message for run", run.id)
+
+    const game = await getGameCached(run.game)
+    const category = game.categories.data.find((x) => x.id === run.category)
+
+    const leaderboard = await getLeaderboard(run.game, run.category, run.values)
+
+    const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
+    const newPlayerMessage =
+      newPlayers.length > 0
+        ? `🎉 **First time submission:** ${newPlayers.map((x) => x.srcPlayer.names.international).join(", ")}\n`
+        : ""
+
+    const place = findPlaceInLeaderboard(leaderboard, run)
+    const placeText =
+      place == 1 ? "🥇 A New World Record" : place === 2 ? "🥈" : place === 3 ? "🥉" : formatPlace(place)
+
+    const isChallenger = category && isChallengerRun(run, category, place)
+    const challengerMessage = isChallenger ? `**🏆 Challenger run:** May be ${placeText}!` : `May be ${placeText}`
+
+    const playerNames =
+      run.players.data
+        .slice(0, 3)
+        .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
+        .join(", ") + (run.players.data.length > 3 ? `, and ${run.players.data.length - 3} more` : "")
+
+    const categoryName = category?.name ?? "Unknown category"
+    const gameName = config.games.find((x) => x.id === run.game)?.nickname ?? game.names.international
+
+    const runTime = formatDuration(parse(run.times.primary))
+
+    const submissionDate = new Date(run.submitted!)
+    const dateSeconds = Math.floor(submissionDate.getTime() / 1000)
+
+    const messageContent = `
+## ${gameName} / ${categoryName} by ${playerNames} in ${runTime}
+${newPlayerMessage}${challengerMessage}
+
+**Submitted**: <t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
+${StatusPrefix}
+${run.weblink}
+`
+    const message = await notifyChannel.send(messageContent)
+
+    storedRun.messageId = message.id
+    storedRun.messageChannelId = message.channelId
+
+    return message
+  }
+
   async function recordPlayersHaveVerifiedRun(
     run: RunWithEmbeds,
     players: PlayerWithDbPlayer[],
@@ -147,7 +239,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     logger.info(`Initializing table ${SrcPlayer.tableName}`)
     const players = new Set<string>()
     const hasVerifiedRuns = new Set<string>()
-    for (const gameId of config.srcGameIds) {
+    for (const { id: gameId } of config.games) {
       const runs = await getAllRuns({ game: gameId, max: 200 })
       for (const run of runs) {
         const verified = run.status.status === "verified"
@@ -181,7 +273,7 @@ async function getUnprocessedRuns(gameId: string): Promise<Map<string, RunWithEm
   let lastSeenRunTime = await lastSeenSubmitTime
   if (!lastSeenRunTime) {
     lastSeenRunTime = new Date()
-    lastSeenRunTime.setMinutes(lastSeenRunTime.getMinutes() - 24 * 60 * 7 * 4)
+    lastSeenRunTime.setMinutes(lastSeenRunTime.getMinutes() - 24 * 60 * 30)
   }
 
   const runsSinceLastKnown = getAllRunsSince(lastSeenRunTime, {
@@ -199,52 +291,6 @@ async function getUnprocessedRuns(gameId: string): Promise<Map<string, RunWithEm
     result.set(run.id, run)
   }
   return result
-}
-
-async function createRunMessage(
-  run: RunWithEmbeds,
-  storedRun: SrcRun,
-  players: PlayerWithDbPlayer[],
-  notifyChannel: SendableChannels,
-) {
-  logger.info("Creating message for run", run.id)
-  const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
-  const newPlayerMessage =
-    newPlayers.length > 0
-      ? `🎉 **First time submission for:** ${newPlayers.map((x) => x.srcPlayer.names.international).join(", ")}\n`
-      : ""
-
-  const playersPrefix = run.players.data.length > 1 ? "Players" : "Player"
-  const playerNames = run.players.data
-    .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
-    .join(", ")
-
-  const game = await getGameCached(run.game)
-  const category = game.categories.data.find((x) => x.id === run.category)
-
-  const categoryName = category?.name ?? "Unknown category"
-  const gameName = game.names.international
-
-  const runTime = formatDuration(parse(run.times.primary))
-
-  const submissionDate = new Date(run.submitted!)
-  const dateSeconds = Math.floor(submissionDate.getTime() / 1000)
-
-  const messageContent = `
-## New submission to ${gameName} / ${categoryName}
-${newPlayerMessage}
-**${playersPrefix}**: ${playerNames}
-**Time**: ${runTime}
-**Submitted**: <t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
-${StatusPrefix}
-${run.weblink}
-`
-  const message = await notifyChannel.send(messageContent)
-
-  storedRun.messageId = message.id
-  storedRun.messageChannelId = message.channelId
-
-  return message
 }
 
 async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {

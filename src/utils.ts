@@ -107,3 +107,11 @@ export function formatDuration(duration: Duration) {
   if (duration.seconds) result += `${duration.seconds}s`
   return result
 }
+
+const suffixes = ["th", "st", "nd", "rd"]
+export function formatPlace(place: number) {
+  const mod100 = place % 100
+  const mod10 = place % 10
+  const suffix = mod100 >= 11 && mod100 <= 13 ? "th" : (suffixes[mod10] ?? "th")
+  return `${place}${suffix}`
+}
