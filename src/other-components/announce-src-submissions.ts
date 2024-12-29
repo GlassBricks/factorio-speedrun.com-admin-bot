@@ -1,5 +1,16 @@
-import { Category, getAllRuns, getLeaderboard, getUser, Leaderboard, Player, PlayerUser, Run, User } from "src-ts"
-import { SrcPlayer, SrcRun } from "../db/index.js"
+import {
+  Category,
+  getAllRuns,
+  getLeaderboard,
+  getRun,
+  getUser,
+  Leaderboard,
+  Player,
+  PlayerUser,
+  Run,
+  User,
+} from "src-ts"
+import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
 import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config.js"
 import {
@@ -14,13 +25,14 @@ import { createLogger } from "../logger.js"
 import { scheduleJob } from "node-schedule"
 import { parse } from "iso8601-duration"
 import { container } from "@sapphire/framework"
+import { Op } from "sequelize"
 
 export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcSubmissionsConfig | undefined) {
   if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config))
 }
 
-const embeds = "players"
-type RunWithEmbeds = Run<typeof embeds>
+const runEmbeds = "players"
+type RunWithEmbeds = Run<typeof runEmbeds>
 
 interface PlayerWithDbPlayer {
   dbPlayer: SrcPlayer
@@ -74,9 +86,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     }
 
     logger.info("Finding runs")
-    const allRuns = (await Promise.all(config.games.map((game) => getUnprocessedRuns(game.id))))
-      .flatMap((x) => [...x.values()])
-      .filter((run) => run.submitted)
+    const allRuns = await getAllRunsToProcess()
 
     const storedRuns = new Map(
       (
@@ -222,6 +232,29 @@ ${run.weblink}
     }
   }
 
+  async function getAllRunsToProcess() {
+    const allRuns = new Map<string, RunWithEmbeds>()
+    for (const it of config.games.map((game) => getUnprocessedRuns(game.id))) {
+      for await (const run of it) {
+        allRuns.set(run.id, run)
+      }
+    }
+    // runs that we still are tracking as new
+    // this may result in duplicate database gets, but whatever
+    const newRuns = await SrcRun.findAll({
+      where: {
+        lastStatus: SrcRunStatus.New,
+        runId: { [Op.notIn]: Array.from(allRuns.keys()) },
+      },
+    })
+    const newRunGets = newRuns.map((run) => getRun(run.runId, { embed: runEmbeds }))
+    for (const run of await Promise.all(newRunGets)) {
+      allRuns.set(run.id, run)
+    }
+
+    return Array.from(allRuns.values())
+  }
+
   async function maybeInitSrcPlayers() {
     if (await SrcPlayer.count()) return
     logger.info(`Initializing table ${SrcPlayer.tableName}`)
@@ -249,32 +282,26 @@ ${run.weblink}
   }
 }
 
-async function getUnprocessedRuns(gameId: string): Promise<Map<string, RunWithEmbeds>> {
-  const lastSeenSubmitTime = SrcRun.max<Date | null, SrcRun>("submissionTime")
-
+/** May contain duplicates */
+async function* getUnprocessedRuns(gameId: string): AsyncGenerator<RunWithEmbeds> {
   const newRuns = getAllRuns({
     game: gameId,
     status: "new",
-    embed: embeds,
+    embed: runEmbeds,
+    max: 200,
   })
 
-  const lastSeenRunTime = (await lastSeenSubmitTime) ?? new Date()
+  const lastSeenRunTime = (await SrcRun.max<Date | null, SrcRun>("submissionTime")) ?? new Date()
 
   const runsSinceLastKnown = getAllRunsSince(lastSeenRunTime, {
     game: gameId,
     orderby: "date",
     direction: "desc",
-    embed: embeds,
+    embed: runEmbeds,
     max: 200,
   })
-  const result = new Map<string, RunWithEmbeds>()
-  for (const run of await newRuns) {
-    result.set(run.id, run)
-  }
-  for (const run of await runsSinceLastKnown) {
-    result.set(run.id, run)
-  }
-  return result
+  yield* await newRuns
+  yield* await runsSinceLastKnown
 }
 
 async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {

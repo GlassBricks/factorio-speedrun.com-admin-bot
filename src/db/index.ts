@@ -65,8 +65,8 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   @Column
   declare lastStatus: SrcRunStatus
 
-  @Column
   @Index({ order: "DESC" })
+  @Column
   declare submissionTime: Date
 
   @Column
