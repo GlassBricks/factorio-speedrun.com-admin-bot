@@ -3,7 +3,7 @@
   "private": true,
   "main": "out/main.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc -p tsconfig-release.json",
     "clean": "rm -rf out",
     "test": "jest",
     "dev": "NODE_ENV=development node --watch out/main.js",
