@@ -68,6 +68,7 @@ export interface AnnounceSrcSubmissionsConfig {
   channelId: Snowflake
   srcGameIds: string[]
   cronSchedule: string
+  announceNewPlayersMessage?: string
 }
 
 export interface AutoReactConfig {

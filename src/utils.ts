@@ -80,8 +80,8 @@ export function editLine(message: string, prefix: string, content: string): stri
   }
 
   const lineStart = message.lastIndexOf("\n", prefixIndex) + 1
-  const lineEnd = message.indexOf("\n", prefixIndex)
-  return message.substring(0, lineStart) + content + message.substring(lineEnd)
+  const lineEnd = message.indexOf("\n", prefixIndex + 1)
+  return message.substring(0, lineStart) + prefix + content + message.substring(lineEnd)
 }
 
 export function statusStrToStatus(status: "new" | "verified" | "rejected"): SrcRunStatus {

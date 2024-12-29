@@ -86,6 +86,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
     channelId: Channels.RunAdministration,
     srcGameIds: ["9d35xw1l", "ldewr7ed"],
     cronSchedule: "*/15 * * * *",
+    announceNewPlayersMessage: `🎉 **%p** had their first verified run! Consider giving them the <@&${Roles.Speedrunner}> role.\n<@&${Roles.SrcAdmin}>`,
   },
   autoReact: [
     {

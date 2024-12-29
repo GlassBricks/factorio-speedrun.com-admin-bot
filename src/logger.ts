@@ -1,16 +1,18 @@
 import { container, ILogger, LogLevel } from "@sapphire/framework"
 
-export function createLogger(prefix: string, wrapperLogger: ILogger = container.logger): ILogger {
+export function createLogger(prefix: string): ILogger {
   const methods = ["debug", "error", "info", "trace", "warn", "fatal"] as const
   const result = {} as Record<(typeof methods)[number], (...values: unknown[]) => void>
   for (const method of methods) {
-    result[method] = wrapperLogger[method].bind(wrapperLogger, prefix)
+    result[method] = (...args: unknown[]) => {
+      container.logger[method](prefix, ...args)
+    }
   }
   return {
     ...result,
-    has: wrapperLogger.has.bind(wrapperLogger),
+    has: (a) => container.logger.has(a),
     write(level: LogLevel, ...values) {
-      wrapperLogger.write(level, prefix, ...values)
+      container.logger.write(level, prefix, ...values)
     },
   }
 }
