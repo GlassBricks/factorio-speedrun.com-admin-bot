@@ -270,11 +270,7 @@ async function getUnprocessedRuns(gameId: string): Promise<Map<string, RunWithEm
     embed: embeds,
   })
 
-  let lastSeenRunTime = await lastSeenSubmitTime
-  if (!lastSeenRunTime) {
-    lastSeenRunTime = new Date()
-    lastSeenRunTime.setMinutes(lastSeenRunTime.getMinutes() - 24 * 60 * 30)
-  }
+  const lastSeenRunTime = (await lastSeenSubmitTime) ?? new Date()
 
   const runsSinceLastKnown = getAllRunsSince(lastSeenRunTime, {
     game: gameId,
