@@ -1,6 +1,6 @@
 import { container, Events, Listener } from "@sapphire/framework"
 import { Message } from "discord.js"
-import config, { AutoReactConfig } from "../config.js"
+import config, { AutoReactConfig } from "../config-file.js"
 
 export class AutoReactListener extends Listener<typeof Events.PreMessageParsed> {
   private readonly config: (AutoReactConfig & {

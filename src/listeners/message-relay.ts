@@ -1,6 +1,6 @@
 import { Events, Listener } from "@sapphire/framework"
 import { ApplyOptions } from "@sapphire/decorators"
-import config, { MessageRelayConfig } from "../config.js"
+import config, { MessageRelayConfig } from "../config-file.js"
 import { Message, OmitPartialGroupDMChannel } from "discord.js"
 
 @ApplyOptions<Listener.Options>({

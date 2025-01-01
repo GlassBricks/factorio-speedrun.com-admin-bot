@@ -1,6 +1,6 @@
 import { Client, Events, SendableChannels } from "discord.js"
 import { scheduleJob } from "node-schedule"
-import { AnnounceFactorioVersionConfig } from "../config.js"
+import { AnnounceFactorioVersionConfig } from "../config-file.js"
 import { createLogger } from "../logger.js"
 import { KnownFactorioVersion, VersionString } from "../db/index.js"
 

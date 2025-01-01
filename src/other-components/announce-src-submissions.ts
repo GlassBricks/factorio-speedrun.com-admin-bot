@@ -12,7 +12,7 @@ import {
 } from "src-ts"
 import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
 import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
-import { AnnounceSrcSubmissionsConfig } from "../config.js"
+import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
   botCanSendInChannel,
   editLine,

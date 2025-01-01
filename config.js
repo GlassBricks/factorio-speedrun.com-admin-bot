@@ -18,7 +18,7 @@ const reelectDescription =
 If the no-confidence vote is initiated and receives a 2/3 majority, the current admin team is dismissed and reelections are held.\n\n` +
   moreInfoDescription
 
-/** @typedef {import("./src/config.ts").Config} Config */
+/** @typedef {import("./src/config-file.ts").Config} Config */
 /** @type {Config} */
 const config = {
   botName: "SRC Admin Team",

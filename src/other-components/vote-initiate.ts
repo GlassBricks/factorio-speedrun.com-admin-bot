@@ -14,7 +14,7 @@ import {
   TextBasedChannel,
 } from "discord.js"
 import { ApplicationCommandRegistry, Command, container, ILogger, SapphireClient } from "@sapphire/framework"
-import { VoteInitiateCommandConfig } from "../config.js"
+import { VoteInitiateCommandConfig } from "../config-file.js"
 import { Job, scheduleJob } from "node-schedule"
 import { createLogger } from "../logger.js"
 import { VoteInitiateMessage } from "../db/index.js"

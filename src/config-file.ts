@@ -82,5 +82,8 @@ export interface AutoReactConfig {
   reactions: string[]
 }
 
-const config: Config = ((await import(process.cwd() + "/config.js")) as { default: Config }).default
+const dev = process.env.NODE_ENV === "development"
+const configFile = dev ? "config.dev.js" : "config.js"
+
+const config: Config = (await import(process.cwd() + "/" + configFile)).default as Config
 export default config

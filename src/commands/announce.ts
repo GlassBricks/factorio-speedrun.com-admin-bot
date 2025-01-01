@@ -1,6 +1,6 @@
 import { ApplicationCommandRegistry, Command } from "@sapphire/framework"
 import { ApplyOptions } from "@sapphire/decorators"
-import config from "../config.js"
+import config from "../config-file.js"
 import {
   ActionRowBuilder,
   ButtonBuilder,
