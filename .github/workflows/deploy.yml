@@ -18,6 +18,7 @@ jobs:
       - run: npm run clean && npm run build
       - uses: actions/upload-artifact@v4
         with:
+          name: out
           path: out
   deploy:
     needs: check-and-compile
@@ -33,9 +34,12 @@ jobs:
         env:
           REPO_URL: ${{ github.event.repository.html_url }}
       - working-directory: /home/container/bot
-        run: npm ci --omit=dev
+        run: |
+          npm ci --omit=dev
+          npm run clean
       - uses: actions/download-artifact@v4
         with:
           path: /home/container/bot/out
+          name: out
       - working-directory: /home/container/bot
         run: npm run pm2:start
