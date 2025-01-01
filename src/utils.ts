@@ -62,7 +62,7 @@ export async function getAllRunsSince<Embed extends string = "", S = Run<Embed>>
   return paginatedGetUntilMapNone<RunsResponse<Embed>, S | Run<Embed> | undefined>(`/runs`, queryParams, {
     ...options,
     map: (run) => {
-      if (!run.submitted || new Date(run.submitted) <= timestamp) return undefined
+      if (!run.submitted || new Date(run.submitted) < timestamp) return undefined
       return run
     },
   })

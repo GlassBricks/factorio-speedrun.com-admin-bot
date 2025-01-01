@@ -1,16 +1,5 @@
-import {
-  Category,
-  getAllRuns,
-  getLeaderboard,
-  getRun,
-  getUser,
-  Leaderboard,
-  Player,
-  PlayerUser,
-  Run,
-  User,
-} from "src-ts"
-import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
+import { Category, getAllRuns, getLeaderboard, getUser, Leaderboard, Player, PlayerUser, Run, User } from "src-ts"
+import { SrcPlayer, SrcRun } from "../db/index.js"
 import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
@@ -25,7 +14,6 @@ import { createLogger } from "../logger.js"
 import { scheduleJob } from "node-schedule"
 import { parse } from "iso8601-duration"
 import { container } from "@sapphire/framework"
-import { Op } from "sequelize"
 
 export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcSubmissionsConfig | undefined) {
   if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config))
@@ -52,7 +40,7 @@ const StatusMessage = {
 }
 
 // hardcoded for now
-function isChallengerRun(run: RunWithEmbeds, category: Category | undefined, place: number) {
+function isChallengerRun(_run: RunWithEmbeds, category: Category | undefined, place: number) {
   if (category?.name.toLowerCase().includes("category extensions")) {
     return place <= 3
   }
@@ -86,28 +74,10 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     }
 
     logger.info("Finding runs")
-    const allRuns = await getAllRunsToProcess()
+    const gameIds = config.games.map((x) => x.id)
+    const allRuns = await createDbRunsIfNeeded(await getRunsToProcess(gameIds))
 
-    const storedRuns = new Map(
-      (
-        await SrcRun.findAll({
-          where: { runId: allRuns.map((run) => run.id) },
-        })
-      ).map((run) => [run.runId, run]),
-    )
-    const runsWithStored = allRuns.map((run) => {
-      const storedRun =
-        storedRuns.get(run.id) ??
-        new SrcRun({
-          runId: run.id,
-          submissionTime: new Date(run.submitted!),
-          lastStatus: statusStrToStatus(run.status.status),
-        })
-      return { dbRun: storedRun, srcRun: run }
-    })
-    runsWithStored.sort((a, b) => a.dbRun.submissionTime.getTime() - b.dbRun.submissionTime.getTime())
-
-    for (const run of runsWithStored) {
+    for (const run of allRuns) {
       await processRun(run, notifyChannel)
     }
     logger.info("Done")
@@ -232,29 +202,6 @@ ${run.weblink}
     }
   }
 
-  async function getAllRunsToProcess() {
-    const allRuns = new Map<string, RunWithEmbeds>()
-    for (const it of config.games.map((game) => getUnprocessedRuns(game.id))) {
-      for await (const run of it) {
-        allRuns.set(run.id, run)
-      }
-    }
-    // runs that we still are tracking as new
-    // this may result in duplicate database gets, but whatever
-    const newRuns = await SrcRun.findAll({
-      where: {
-        lastStatus: SrcRunStatus.New,
-        runId: { [Op.notIn]: Array.from(allRuns.keys()) },
-      },
-    })
-    const newRunGets = newRuns.map((run) => getRun(run.runId, { embed: runEmbeds }))
-    for (const run of await Promise.all(newRunGets)) {
-      allRuns.set(run.id, run)
-    }
-
-    return Array.from(allRuns.values())
-  }
-
   async function maybeInitSrcPlayers() {
     if (await SrcPlayer.count()) return
     logger.info(`Initializing table ${SrcPlayer.tableName}`)
@@ -282,26 +229,77 @@ ${run.weblink}
   }
 }
 
-/** May contain duplicates */
-async function* getUnprocessedRuns(gameId: string): AsyncGenerator<RunWithEmbeds> {
-  const newRuns = getAllRuns({
-    game: gameId,
-    status: "new",
-    embed: runEmbeds,
-    max: 200,
-  })
+interface RunWithMaybeDbRun {
+  srcRun: RunWithEmbeds
+  dbRun?: SrcRun
+}
 
-  const lastSeenRunTime = (await SrcRun.max<Date | null, SrcRun>("submissionTime")) ?? new Date()
+/**
+ * Fetches runs that:
+ * - Are newer than the newest run in the database (newly submitted)
+ * - Have a "new" status (so old runs that get un-verified are included)
+ * - Are already saved in the database (so we might update their status)
+ *
+ * Does not mutate the database.
+ */
+async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]> {
+  const allDbRuns = await SrcRun.findAll({ order: [["submissionTime", "desc"]] })
+  const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now())
+  const earliestSavedSubmission = allDbRuns[allDbRuns.length - 1]?.submissionTime ?? latestSavedSubmission
 
-  const runsSinceLastKnown = getAllRunsSince(lastSeenRunTime, {
-    game: gameId,
-    orderby: "date",
-    direction: "desc",
-    embed: runEmbeds,
-    max: 200,
-  })
-  yield* await newRuns
-  yield* await runsSinceLastKnown
+  const newRunsStatus = gameIds.map((gameId) =>
+    getAllRuns({
+      game: gameId,
+      status: "new",
+      embed: runEmbeds,
+      max: 200,
+    }),
+  )
+  const allRunsQuery = gameIds.map((gameId) =>
+    getAllRunsSince(earliestSavedSubmission, {
+      game: gameId,
+      orderby: "date",
+      direction: "desc",
+      embed: runEmbeds,
+      max: 200,
+    }),
+  )
+
+  const allDbRunsMap = new Map(allDbRuns.map((run) => [run.runId, run]))
+
+  const allRuns = (await Promise.all([...newRunsStatus, ...allRunsQuery])).flat()
+
+  const resultMap = new Map<string, RunWithMaybeDbRun>()
+  for (const run of allRuns) {
+    if (!run.submitted) continue // ignore very old runs without submission time for now
+    if (resultMap.has(run.id)) continue
+    const dbRun = allDbRunsMap.get(run.id)
+
+    const shouldIncludeInResult =
+      dbRun !== undefined ||
+      run.status.status === "new" ||
+      new Date(run.submitted).getTime() > latestSavedSubmission.getTime()
+    if (shouldIncludeInResult) {
+      resultMap.set(run.id, { srcRun: run, dbRun: dbRun })
+    }
+  }
+  const result = Array.from(resultMap.values())
+  result.sort((a, b) => new Date(a.srcRun.submitted!).getTime() - new Date(b.srcRun.submitted!).getTime())
+  return result
+}
+
+async function createDbRunsIfNeeded(runs: RunWithMaybeDbRun[]): Promise<RunWithDbRun[]> {
+  const runsNeedingDbRun = runs.filter((x) => !x.dbRun)
+  if (runsNeedingDbRun.length === 0) return runs as RunWithDbRun[]
+  const dbRuns = await SrcRun.bulkCreate(
+    runsNeedingDbRun.map((x) => ({
+      runId: x.srcRun.id,
+      submissionTime: new Date(x.srcRun.submitted!),
+      lastStatus: statusStrToStatus(x.srcRun.status.status),
+    })),
+  )
+  const dbRunMap = new Map(dbRuns.map((x) => [x.runId, x]))
+  return runs.map((x) => ({ srcRun: x.srcRun, dbRun: x.dbRun ?? dbRunMap.get(x.srcRun.id)! }))
 }
 
 async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {
