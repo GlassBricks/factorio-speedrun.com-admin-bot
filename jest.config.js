@@ -4,4 +4,5 @@ import { createDefaultEsmPreset } from "ts-jest"
 export default {
   ...createDefaultEsmPreset(),
   resolver: "jest-ts-webcompat-resolver",
+  roots: ["<rootDir>/src"],
 }
