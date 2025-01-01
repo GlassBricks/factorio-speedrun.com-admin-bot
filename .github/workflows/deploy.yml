@@ -6,17 +6,21 @@ on:
     branches: [deploy]
   workflow_dispatch:
 jobs:
-  check:
+  check-and-compile:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
       - run: npm ci
       - run: npm run check
+      - run: npm run clean && npm run build
+      - uses: actions/upload-artifact@v4
+        with:
+          path: out
   deploy:
-    needs: check
+    needs: check-and-compile
     runs-on: self-hosted
     steps:
       - name: Checkout
@@ -24,13 +28,14 @@ jobs:
         run: |
           git init
           git remote set-url origin $REPO_URL || git remote add origin $REPO_URL
-          git fetch
+          git fetch origin deploy
           git reset --hard origin/deploy
         env:
           REPO_URL: ${{ github.event.repository.html_url }}
       - working-directory: /home/container/bot
         run: npm ci --omit=dev
-      - working-directory: /home/container/bot
-        run: npm run clean && npm run build
+      - uses: actions/download-artifact@v4
+        with:
+          path: /home/container/bot/out
       - working-directory: /home/container/bot
         run: npm run pm2:start
