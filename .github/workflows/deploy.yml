@@ -31,6 +31,7 @@ jobs:
           git remote set-url origin $REPO_URL || git remote add origin $REPO_URL
           git fetch origin deploy
           git reset --hard origin/deploy
+          git clean -fd
         env:
           REPO_URL: ${{ github.event.repository.html_url }}
       - working-directory: /home/container/bot
