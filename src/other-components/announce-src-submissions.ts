@@ -1,5 +1,5 @@
 import { Category, getAllRuns, getLeaderboard, getUser, Leaderboard, Player, PlayerUser, Run, User } from "src-ts"
-import { SrcPlayer, SrcRun } from "../db/index.js"
+import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
 import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
@@ -119,6 +119,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     const players = lazy(() => getOrAddPlayers(srcRun))
 
     const statusChanged = dbRun.lastStatus !== status
+    const shouldUpdate = statusChanged || status == SrcRunStatus.New
     dbRun.lastStatus = status
 
     let message: Message | Promise<Message | undefined> | undefined
@@ -126,7 +127,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     if (!dbRun.messageChannelId || !dbRun.messageId) {
       isNewMessage = true
       message = await createRunMessage(srcRun, dbRun, await players(), notifyChannel)
-    } else if (statusChanged) {
+    } else if (shouldUpdate) {
       // fetch message to update
       message = fetchMessage(dbRun)
     } else {
