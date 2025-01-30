@@ -1,6 +1,6 @@
 import { Category, getAllRuns, getLeaderboard, getUser, Leaderboard, Player, PlayerUser, Run, User } from "src-ts"
 import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
-import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
+import { Client, Events, lazy, Message, MessageFlags, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
   assertNever,
@@ -118,8 +118,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     const status = statusStrToStatus(srcRun.status.status)
     const players = lazy(() => getOrAddPlayers(srcRun))
 
-    const statusChanged = dbRun.lastStatus !== status
-    const shouldUpdate = statusChanged || status == SrcRunStatus.New
+    const shouldUpdate = dbRun.lastStatus !== status || status == SrcRunStatus.New
     dbRun.lastStatus = status
 
     let message: Message | Promise<Message | undefined> | undefined
@@ -139,7 +138,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     async function updateMessage() {
       message = await message
       if (message) {
-        await updateRunStatusInMessage(message, srcRun)
+        message = await updateRunStatusInMessage(message, srcRun)
         if (isNewMessage || srcRun.status.status === "new") {
           await updateVideoProofInMessage(message, srcRun)
         }
@@ -207,7 +206,10 @@ ${VideoPrefix}
 ${StatusPrefix}
 ${run.weblink}
 `
-    const message = await notifyChannel.send(messageContent)
+    const message = await notifyChannel.send({
+      content: messageContent,
+      flags: MessageFlags.SuppressEmbeds,
+    })
 
     storedRun.messageId = message.id
     storedRun.messageChannelId = message.channelId
@@ -404,11 +406,12 @@ async function getStatusText(run: RunWithEmbeds) {
   return status.replace("%p", examinerName)
 }
 
-async function updateRunStatusInMessage(message: Message, run: RunWithEmbeds) {
+async function updateRunStatusInMessage(message: Message, run: RunWithEmbeds): Promise<Message> {
   const newContent = editLine(message.content, StatusPrefix, await getStatusText(run))
   if (message.content != newContent) {
-    await message.edit(newContent)
+    return await message.edit(newContent)
   }
+  return message
 }
 
 async function getVideoProofText(run: RunWithEmbeds) {
