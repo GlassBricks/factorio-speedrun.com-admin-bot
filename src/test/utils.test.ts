@@ -21,4 +21,12 @@ describe("editLine", () => {
     const result = editLine(message, "Hello: ", "3\n4")
     expect(result).toBe(`Hi: 1\nHello: 3  4\nBaz: 3\n`)
   })
+  test("if prefix is missing, inserts in line after previousLinePrefixIfMissing", () => {
+    const result = editLine(message, "What: ", "4", "Hello: ")
+    expect(result).toBe(`Hi: 1\nHello: 2\nWhat: 4\nBaz: 3\n`)
+  })
+  test("if prefix is missing and previousLinePrefixIfMissing is missing, appends to end of message", () => {
+    const result = editLine(message, "What: ", "4", "something")
+    expect(result).toBe(`Hi: 1\nHello: 2\nBaz: 3\nWhat: 4\n`)
+  })
 })

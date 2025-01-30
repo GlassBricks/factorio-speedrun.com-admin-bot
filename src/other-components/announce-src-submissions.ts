@@ -3,6 +3,7 @@ import { SrcPlayer, SrcRun } from "../db/index.js"
 import { Client, Events, lazy, Message, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
+  assertNever,
   botCanSendInChannel,
   editLine,
   formatDuration,
@@ -14,6 +15,7 @@ import { createLogger } from "../logger.js"
 import { scheduleJob } from "node-schedule"
 import { parse } from "iso8601-duration"
 import { container } from "@sapphire/framework"
+import twitchClient from "../twitch.js"
 
 export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcSubmissionsConfig | undefined) {
   if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config))
@@ -32,12 +34,39 @@ interface RunWithDbRun {
   srcRun: RunWithEmbeds
 }
 
+const SubmittedPrefix = "**Submitted:** "
+
+type TwitchVideoType = "archive" | "highlight" | "upload" | "offline" | "unknown"
+
+interface TwitchVideoInfo {
+  type: "twitch"
+  url: string
+  twitchVideoType: TwitchVideoType
+}
+
+interface YoutubeVideoInfo {
+  type: "youtube"
+  url: string
+}
+
+const VideoPrefix = "**Video proof:** "
+const TwitchVideoMessage = {
+  archive: "Found [auto-archived Twitch VOD](%url)",
+  highlight: "Found [Twitch highlight](%url)",
+  upload: "Found uploaded [Twitch video](%url)",
+  offline: "Found offline [Twitch video](%url) (Twitch returned 404)",
+  unknown: "Found [Twitch video](%url) (status unknown)",
+}
+
 const StatusPrefix = "**Status:** "
 const StatusMessage = {
   new: "⏳New",
   verified: "✅ Verified by %p",
   rejected: "❌ Rejected by %p",
 }
+
+const YoutubeVideoMessage = "Found [YouTube video](%url)"
+const NoVideoMessage = "None found"
 
 // hardcoded for now
 function isChallengerRun(_run: RunWithEmbeds, category: Category | undefined, place: number) {
@@ -93,7 +122,9 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     dbRun.lastStatus = status
 
     let message: Message | Promise<Message | undefined> | undefined
+    let isNewMessage = false
     if (!dbRun.messageChannelId || !dbRun.messageId) {
+      isNewMessage = true
       message = await createRunMessage(srcRun, dbRun, await players(), notifyChannel)
     } else if (statusChanged) {
       // fetch message to update
@@ -108,6 +139,9 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       message = await message
       if (message) {
         await updateRunStatusInMessage(message, srcRun)
+        if (isNewMessage || srcRun.status.status === "new") {
+          await updateVideoProofInMessage(message, srcRun)
+        }
       }
       if (srcRun.status.status === "verified") {
         await recordPlayersHaveVerifiedRun(srcRun, await players(), message)
@@ -144,11 +178,15 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     const isChallenger = category && isChallengerRun(run, category, place)
     const challengerMessage = isChallenger ? `**🏆 Challenger run:** May be ${placeText}!` : `May be ${placeText}`
 
-    const playerNames =
-      run.players.data
-        .slice(0, 3)
+    function getPlayerNamesStr(players: Player[]): string {
+      return players
         .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
-        .join(", ") + (run.players.data.length > 3 ? `, and ${run.players.data.length - 3} more` : "")
+        .join(", ")
+    }
+    const playerNames =
+      run.players.data.length <= 4
+        ? getPlayerNamesStr(run.players.data)
+        : getPlayerNamesStr(run.players.data.slice(0, 3)) + `, and ${run.players.data.length - 3} more`
 
     const categoryName = category?.name ?? "Unknown category"
     const gameName =
@@ -163,7 +201,8 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 ## ${gameName} / ${categoryName} by ${playerNames} in ${runTime}
 ${newPlayerMessage}${challengerMessage}
 
-**Submitted**: <t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
+${SubmittedPrefix}<t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
+${VideoPrefix}
 ${StatusPrefix}
 ${run.weblink}
 `
@@ -302,6 +341,50 @@ async function createDbRunsIfNeeded(runs: RunWithMaybeDbRun[]): Promise<RunWithD
   return runs.map((x) => ({ srcRun: x.srcRun, dbRun: x.dbRun ?? dbRunMap.get(x.srcRun.id)! }))
 }
 
+function findLinkMatching(run: RunWithEmbeds, regex: RegExp) {
+  const videoLinks = run.videos?.links
+  if (!videoLinks) return undefined
+  for (const link of videoLinks) {
+    const match = link.uri.match(regex)
+    if (match) {
+      return match[1]
+    }
+  }
+  return undefined
+}
+const twitchVideoProofRegex = /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/
+async function findTwitchVideo(run: RunWithEmbeds): Promise<TwitchVideoInfo | undefined> {
+  const videoId = findLinkMatching(run, twitchVideoProofRegex)
+  if (!videoId) return undefined
+  const video = await twitchClient
+    .getVideo(videoId)
+    .then((video) => video?.type ?? "offline")
+    .catch((e) => {
+      logger.error("Error fetching twitch video", e)
+      return "unknown" as const
+    })
+  return {
+    type: "twitch",
+    url: `https://www.twitch.tv/videos/${videoId}`,
+    twitchVideoType: video,
+  }
+}
+
+const youtubeVideoProofRegex = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/
+// eslint-disable-next-line @typescript-eslint/require-await
+async function findYoutubeVideo(run: RunWithEmbeds): Promise<YoutubeVideoInfo | undefined> {
+  const videoId = findLinkMatching(run, youtubeVideoProofRegex)
+  if (!videoId) return undefined
+  return {
+    type: "youtube",
+    url: `https://www.youtube.com/watch?v=${videoId}`,
+  }
+}
+
+async function findVideo(run: RunWithEmbeds): Promise<TwitchVideoInfo | YoutubeVideoInfo | undefined> {
+  return (await findTwitchVideo(run)) ?? (await findYoutubeVideo(run))
+}
+
 async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {
   if (!dbRun.messageChannelId || !dbRun.messageId) return undefined
   let message: Message | undefined
@@ -314,6 +397,12 @@ async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {
   return message
 }
 
+async function getStatusText(run: RunWithEmbeds) {
+  const examinerName = "examiner" in run.status ? (await getUserCached(run.status.examiner)).names.international : ""
+  const status = StatusMessage[run.status.status] ?? "Unknown"
+  return status.replace("%p", examinerName)
+}
+
 async function updateRunStatusInMessage(message: Message, run: RunWithEmbeds) {
   const newContent = editLine(message.content, StatusPrefix, await getStatusText(run))
   if (message.content != newContent) {
@@ -321,10 +410,23 @@ async function updateRunStatusInMessage(message: Message, run: RunWithEmbeds) {
   }
 }
 
-async function getStatusText(run: RunWithEmbeds) {
-  const examinerName = "examiner" in run.status ? (await getUserCached(run.status.examiner)).names.international : ""
-  const status = StatusMessage[run.status.status] ?? "Unknown"
-  return status.replace("%p", examinerName)
+async function getVideoProofText(run: RunWithEmbeds) {
+  const video = await findVideo(run)
+  if (!video) return NoVideoMessage
+  if (video.type === "twitch") {
+    return TwitchVideoMessage[video.twitchVideoType].replace("%url", video.url)
+  } else if (video.type === "youtube") {
+    return YoutubeVideoMessage.replace("%url", video.url)
+  } else {
+    assertNever(video)
+  }
+}
+
+async function updateVideoProofInMessage(message: Message, run: RunWithEmbeds) {
+  const newContent = editLine(message.content, VideoPrefix, await getVideoProofText(run), SubmittedPrefix)
+  if (message.content != newContent) {
+    await message.edit(newContent)
+  }
 }
 
 async function getOrAddPlayers(run: RunWithEmbeds): Promise<PlayerWithDbPlayer[]> {
