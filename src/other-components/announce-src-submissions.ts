@@ -263,10 +263,9 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 
     if (config.announceNewPlayersMessage && message) {
       try {
-        const thread = message.thread ?? (await message.startThread({ name: "New speedrunner!" }))
         const playerNames = newPlayers.map((x) => x.srcPlayer.names.international).join(", ")
         const messageContent = config.announceNewPlayersMessage.replace("%p", playerNames)
-        await thread.send(messageContent)
+        await message.reply(messageContent)
       } catch (e) {
         logger.error(e)
       }
