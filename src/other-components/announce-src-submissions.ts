@@ -24,7 +24,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 3
+const MESSAGE_VERSION = 4
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -211,8 +211,8 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         logger.info("Updating video for run", srcRun.id)
         await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
       }
-      if (message && content && message.content !== content) {
-        await message.edit(content)
+      if (message && content && (message.content !== content || shouldUpdateWholeMessage)) {
+        await message.edit({ content, flags: MessageFlags.SuppressEmbeds })
         dbRun.messageVersion = MESSAGE_VERSION
       } else {
         logger.info("No changes for run", srcRun.id)
