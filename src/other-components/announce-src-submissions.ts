@@ -51,7 +51,7 @@ interface YoutubeVideoInfo {
 
 const VideoPrefix = "**Video proof:** "
 const TwitchVideoMessage = {
-  archive: "Found [auto-archived Twitch VOD](%url)",
+  archive: "Found [Twitch VOD](%url) (Not a permanent video!)",
   highlight: "Found [Twitch highlight](%url)",
   upload: "Found uploaded [Twitch video](%url)",
   offline: "Found offline [Twitch video](%url) (Twitch returned 404)",
