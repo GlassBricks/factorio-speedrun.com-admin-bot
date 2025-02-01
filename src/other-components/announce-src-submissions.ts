@@ -203,15 +203,16 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 
       const shouldUpdateStatus = shouldUpdateWholeMessage || dbRun.lastStatus !== status
       if (shouldUpdateStatus) {
-        logger.info("Updating status for run", srcRun.id)
+        logger.info("Updating status", srcRun.id)
         await editContent(updateRunStatusInMessage.bind(undefined, srcRun))
       }
       const shouldUpdateVideo = shouldUpdateWholeMessage || srcRun.status.status === "new"
       if (shouldUpdateVideo) {
-        logger.info("Updating video for run", srcRun.id)
+        logger.info("Updating video", srcRun.id)
         await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
       }
       if (message && content && (message.content !== content || shouldUpdateWholeMessage)) {
+        logger.info("Editing message", srcRun.id)
         await message.edit({ content, flags: MessageFlags.SuppressEmbeds })
         dbRun.messageVersion = MESSAGE_VERSION
       } else {
