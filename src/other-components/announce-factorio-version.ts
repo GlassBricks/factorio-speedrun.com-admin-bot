@@ -40,8 +40,9 @@ function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
     let changed = false
     for (const key of ["stable", "experimental"] as const) {
       if (current[key] !== lastKnownObj[key]) {
-        logger.info(`## New ${key} Factorio version: ${lastKnownObj[key]} -> ${current[key]}`)
-        await send(`## New ${key} Factorio version: ${current[key]}`)
+        const message = `New ${key} version: ${lastKnownObj[key] ?? "unknown"} ⇨ ${current[key]}`
+        logger.info(message)
+        await send("## 🇻 " + message)
         changed = true
       }
       lastKnownEntry[key] = current[key]
