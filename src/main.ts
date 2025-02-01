@@ -39,6 +39,6 @@ setUpVoteInitiateCommand(client, config.voteInitiateCommands)
 setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
 setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
 
-await sequelize.sync()
+await sequelize.sync({ alter: true })
 client.logger.info("Database synced")
 await client.login(process.env.DISCORD_TOKEN)

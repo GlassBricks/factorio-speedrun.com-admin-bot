@@ -24,7 +24,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 1
+const MESSAGE_VERSION = 3
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -175,11 +175,11 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     dbRun.lastStatus = status
 
     let message: Message | undefined
-    let isNewMessage = false
-    if (!dbRun.messageChannelId || !dbRun.messageId) {
-      isNewMessage = true
+    const isNewMessage = !dbRun.messageChannelId || !dbRun.messageId
+    if (isNewMessage) {
       message = await createRunMessage(srcRun, dbRun, await players(), notifyChannel)
     }
+    const shouldUpdateWholeMessage = isNewMessage || dbRun.messageVersion !== MESSAGE_VERSION
 
     async function updateMessage() {
       let content: string | undefined
@@ -198,14 +198,17 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
           }
         }
         content = await fn(content)
+        logger.debug("New content:", content)
       }
 
-      const shouldUpdateStatus = isNewMessage || dbRun.lastStatus !== status
+      const shouldUpdateStatus = shouldUpdateWholeMessage || dbRun.lastStatus !== status
       if (shouldUpdateStatus) {
+        logger.info("Updating status for run", srcRun.id)
         await editContent(updateRunStatusInMessage.bind(undefined, srcRun))
       }
-      const shouldUpdateVideo = isNewMessage || srcRun.status.status === "new"
+      const shouldUpdateVideo = shouldUpdateWholeMessage || srcRun.status.status === "new"
       if (shouldUpdateVideo) {
+        logger.info("Updating video for run", srcRun.id)
         await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
       }
       if (message && content && message.content !== content) {
@@ -220,7 +223,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       }
     }
 
-    launch(updateMessage())
+    await updateMessage()
   }
 
   async function createRunMessage(
