@@ -223,7 +223,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       }
     }
 
-    await updateMessage()
+    launch(updateMessage())
   }
 
   async function createRunMessage(
@@ -309,7 +309,7 @@ interface RunWithMaybeDbRun {
  * Fetches runs that:
  * - Are newer than the newest run in the database (newly submitted)
  * - Have a "new" status (so old runs that get un-verified are included)
- * - Are already saved in the database (so we might update their status)
+ * - Are already saved in the database (so we might update their status), with a new status
  *
  * Does not mutate the database.
  */
@@ -318,7 +318,7 @@ async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]>
   const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now())
   const earliestSavedSubmission = allDbRuns[allDbRuns.length - 1]?.submissionTime ?? latestSavedSubmission
 
-  const newRunsStatus = gameIds.map((gameId) =>
+  const newStatusRuns = gameIds.map((gameId) =>
     getAllRuns({
       game: gameId,
       status: "new",
@@ -326,7 +326,7 @@ async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]>
       max: 200,
     }),
   )
-  const allRunsQuery = gameIds.map((gameId) =>
+  const allExistingRuns = gameIds.map((gameId) =>
     getAllRunsSince(earliestSavedSubmission, {
       game: gameId,
       orderby: "date",
@@ -338,7 +338,7 @@ async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]>
 
   const allDbRunsMap = new Map(allDbRuns.map((run) => [run.runId, run]))
 
-  const allRuns = (await Promise.all([...newRunsStatus, ...allRunsQuery])).flat()
+  const allRuns = (await Promise.all([...newStatusRuns, ...allExistingRuns])).flat()
 
   const resultMap = new Map<string, RunWithMaybeDbRun>()
   for (const run of allRuns) {
