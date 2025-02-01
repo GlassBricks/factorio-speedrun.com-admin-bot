@@ -74,6 +74,9 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
 
   @Column
   declare messageId?: Snowflake
+
+  @Column
+  declare messageVersion?: number
 }
 
 const dev = process.env.NODE_ENV === "development"

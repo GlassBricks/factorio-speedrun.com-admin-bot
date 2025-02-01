@@ -1,5 +1,5 @@
 import { Category, getAllRuns, getLeaderboard, getUser, Leaderboard, Player, PlayerUser, Run, User } from "src-ts"
-import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
+import { SrcPlayer, SrcRun } from "../db/index.js"
 import { Client, Events, lazy, Message, MessageFlags, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
@@ -20,6 +20,11 @@ import twitchClient from "../twitch.js"
 export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcSubmissionsConfig | undefined) {
   if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config))
 }
+
+/**
+ * Update this if the message format changes
+ */
+const MESSAGE_VERSION = 1
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -51,11 +56,11 @@ interface YoutubeVideoInfo {
 
 const VideoPrefix = "**Video proof:** "
 const TwitchVideoMessage = {
-  archive: "Found [Twitch VOD](%url) (Not a permanent video!)",
+  archive: "Found [Twitch VOD](%url) (not a permanent video!!)",
   highlight: "Found [Twitch highlight](%url)",
-  upload: "Found uploaded [Twitch video](%url)",
-  offline: "Found offline [Twitch video](%url) (Twitch returned 404)",
-  unknown: "Found [Twitch video](%url) (status unknown)",
+  upload: "Found [uploaded Twitch video](%url)",
+  offline: "Found [offline Twitch video](%url) (Twitch returned 404)",
+  unknown: "Found [Twitch video](%url), status unknown. (Fix me @GlassBricks !)",
 }
 
 const StatusPrefix = "**Status:** "
@@ -87,6 +92,55 @@ function findPlaceInLeaderboard(leaderboard: Leaderboard<"game,category">, run: 
 
 const logger = createLogger("[AnnounceSrcSubmissions]")
 
+async function getMessageContent(
+  run: RunWithEmbeds,
+  players: PlayerWithDbPlayer[],
+  config: AnnounceSrcSubmissionsConfig,
+) {
+  const leaderboard = await getLeaderboard(run.game, run.category, run.values, { embed: "game,category" })
+  const game = Array.isArray(leaderboard.game.data) ? undefined : leaderboard.game.data
+  const category = Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data
+
+  const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
+  const newPlayerMessage =
+    newPlayers.length > 0
+      ? `🎉 **First time submission:** ${newPlayers.map((x) => x.srcPlayer.names.international).join(", ")}\n`
+      : ""
+
+  const place = findPlaceInLeaderboard(leaderboard, run)
+  const placeText = place == 1 ? "🥇 A New World Record" : place === 2 ? "🥈" : place === 3 ? "🥉" : formatPlace(place)
+
+  const isChallenger = category && isChallengerRun(run, category, place)
+  const challengerMessage = isChallenger ? `**🏆 Challenger run:** May be ${placeText}!` : `May be ${placeText}`
+
+  function getPlayerNamesStr(players: Player[]): string {
+    return players
+      .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
+      .join(", ")
+  }
+  const playerNames =
+    run.players.data.length <= 4
+      ? getPlayerNamesStr(run.players.data)
+      : getPlayerNamesStr(run.players.data.slice(0, 3)) + `, and ${run.players.data.length - 3} more`
+
+  const categoryName = category?.name ?? "Unknown category"
+  const gameName = config.games.find((x) => x.id === run.game)?.nickname ?? game?.names.international ?? "Unknown game"
+
+  const runTime = formatDuration(parse(run.times.primary))
+
+  const submissionDate = new Date(run.submitted!)
+  const dateSeconds = Math.floor(submissionDate.getTime() / 1000)
+
+  return `
+## ${gameName} / ${categoryName} by ${playerNames} in ${runTime}
+${newPlayerMessage}${challengerMessage}
+
+${VideoPrefix}
+${SubmittedPrefix}<t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
+${StatusPrefix}
+${run.weblink}
+`
+}
 function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
   scheduleJob("processSrcSubmissions", config.cronSchedule, () => logErrors(run()))
     // Run once on startup
@@ -118,101 +172,73 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     const status = statusStrToStatus(srcRun.status.status)
     const players = lazy(() => getOrAddPlayers(srcRun))
 
-    const shouldUpdate = dbRun.lastStatus !== status || status == SrcRunStatus.New
     dbRun.lastStatus = status
 
-    let message: Message | Promise<Message | undefined> | undefined
+    let message: Message | undefined
     let isNewMessage = false
     if (!dbRun.messageChannelId || !dbRun.messageId) {
       isNewMessage = true
       message = await createRunMessage(srcRun, dbRun, await players(), notifyChannel)
-    } else if (shouldUpdate) {
-      // fetch message to update
-      message = fetchMessage(dbRun)
-    } else {
-      // no changes, no need to dbRun.save() either
-      logger.info("No changes for run", srcRun.id)
-      return
     }
 
     async function updateMessage() {
-      message = await message
-      if (message) {
-        message = await updateRunStatusInMessage(message, srcRun)
-        if (isNewMessage || srcRun.status.status === "new") {
-          await updateVideoProofInMessage(message, srcRun)
+      let content: string | undefined
+      let messageFetched = false
+      async function editContent(fn: (content: string) => Promise<string>) {
+        if (!messageFetched) {
+          message ??= await fetchMessage(dbRun)
+          messageFetched = true
         }
+        if (!message) return
+        if (!content) {
+          if (dbRun.messageVersion === MESSAGE_VERSION) {
+            content = message.content
+          } else {
+            content = await getMessageContent(srcRun, await players(), config)
+          }
+        }
+        content = await fn(content)
       }
-      if (srcRun.status.status === "verified") {
+
+      const shouldUpdateStatus = isNewMessage || dbRun.lastStatus !== status
+      if (shouldUpdateStatus) {
+        await editContent(updateRunStatusInMessage.bind(undefined, srcRun))
+      }
+      const shouldUpdateVideo = isNewMessage || srcRun.status.status === "new"
+      if (shouldUpdateVideo) {
+        await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
+      }
+      if (message && content && message.content !== content) {
+        await message.edit(content)
+        dbRun.messageVersion = MESSAGE_VERSION
+      } else {
+        logger.info("No changes for run", srcRun.id)
+      }
+      launch(dbRun.save())
+      if (shouldUpdateStatus && srcRun.status.status === "verified") {
         await recordPlayersHaveVerifiedRun(srcRun, await players(), message)
       }
     }
 
-    // don't wait to do these things before processing next run
-    launch(dbRun.save())
     launch(updateMessage())
   }
 
   async function createRunMessage(
     run: RunWithEmbeds,
-    storedRun: SrcRun,
+    dbRun: SrcRun,
     players: PlayerWithDbPlayer[],
     notifyChannel: SendableChannels,
   ) {
     logger.info("Creating message for run", run.id)
-
-    const leaderboard = await getLeaderboard(run.game, run.category, run.values, { embed: "game,category" })
-    const game = Array.isArray(leaderboard.game.data) ? undefined : leaderboard.game.data
-    const category = Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data
-
-    const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
-    const newPlayerMessage =
-      newPlayers.length > 0
-        ? `🎉 **First time submission:** ${newPlayers.map((x) => x.srcPlayer.names.international).join(", ")}\n`
-        : ""
-
-    const place = findPlaceInLeaderboard(leaderboard, run)
-    const placeText =
-      place == 1 ? "🥇 A New World Record" : place === 2 ? "🥈" : place === 3 ? "🥉" : formatPlace(place)
-
-    const isChallenger = category && isChallengerRun(run, category, place)
-    const challengerMessage = isChallenger ? `**🏆 Challenger run:** May be ${placeText}!` : `May be ${placeText}`
-
-    function getPlayerNamesStr(players: Player[]): string {
-      return players
-        .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
-        .join(", ")
-    }
-    const playerNames =
-      run.players.data.length <= 4
-        ? getPlayerNamesStr(run.players.data)
-        : getPlayerNamesStr(run.players.data.slice(0, 3)) + `, and ${run.players.data.length - 3} more`
-
-    const categoryName = category?.name ?? "Unknown category"
-    const gameName =
-      config.games.find((x) => x.id === run.game)?.nickname ?? game?.names.international ?? "Unknown game"
-
-    const runTime = formatDuration(parse(run.times.primary))
-
-    const submissionDate = new Date(run.submitted!)
-    const dateSeconds = Math.floor(submissionDate.getTime() / 1000)
-
-    const messageContent = `
-## ${gameName} / ${categoryName} by ${playerNames} in ${runTime}
-${newPlayerMessage}${challengerMessage}
-
-${SubmittedPrefix}<t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
-${VideoPrefix}
-${StatusPrefix}
-${run.weblink}
-`
+    const messageContent = await getMessageContent(run, players, config)
     const message = await notifyChannel.send({
       content: messageContent,
       flags: MessageFlags.SuppressEmbeds,
     })
 
-    storedRun.messageId = message.id
-    storedRun.messageChannelId = message.channelId
+    dbRun.messageId = message.id
+    dbRun.messageChannelId = message.channelId
+    dbRun.messageVersion = MESSAGE_VERSION
 
     return message
   }
@@ -406,12 +432,8 @@ async function getStatusText(run: RunWithEmbeds) {
   return status.replace("%p", examinerName)
 }
 
-async function updateRunStatusInMessage(message: Message, run: RunWithEmbeds): Promise<Message> {
-  const newContent = editLine(message.content, StatusPrefix, await getStatusText(run))
-  if (message.content != newContent) {
-    return await message.edit(newContent)
-  }
-  return message
+async function updateRunStatusInMessage(run: RunWithEmbeds, content: string): Promise<string> {
+  return editLine(content, StatusPrefix, await getStatusText(run))
 }
 
 async function getVideoProofText(run: RunWithEmbeds) {
@@ -426,11 +448,8 @@ async function getVideoProofText(run: RunWithEmbeds) {
   }
 }
 
-async function updateVideoProofInMessage(message: Message, run: RunWithEmbeds) {
-  const newContent = editLine(message.content, VideoPrefix, await getVideoProofText(run), SubmittedPrefix)
-  if (message.content != newContent) {
-    await message.edit(newContent)
-  }
+async function updateVideoProofInMessage(run: RunWithEmbeds, content: string): Promise<string> {
+  return editLine(content, VideoPrefix, await getVideoProofText(run), SubmittedPrefix)
 }
 
 async function getOrAddPlayers(run: RunWithEmbeds): Promise<PlayerWithDbPlayer[]> {
