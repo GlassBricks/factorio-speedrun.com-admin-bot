@@ -50,7 +50,8 @@ class TwitchClient {
     if (this.token == undefined) {
       await this.refreshToken()
     }
-    this.logger.info("Requesting", input, init)
+    this.logger.info("Requesting", input)
+    this.logger.debug(init)
     const response = await fetch(input, {
       ...init,
       headers: {
@@ -74,6 +75,8 @@ class TwitchClient {
       await this.waitUntilRatelimitReset(timestamp)
       return this.authorizedApiRequest(input, init)
     }
+    this.logger.info("Completed request", input)
+    this.logger.debug(init, response)
     return response
   }
 
