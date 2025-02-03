@@ -91,8 +91,9 @@ export function editLine(
   }
 
   const lineStart = prefixIndex
-  const lineEnd = message.indexOf("\n", prefixIndex)
-  return message.substring(0, lineStart) + prefix + content + message.substring(lineEnd)
+  const lineEndIndex = message.indexOf("\n", prefixIndex)
+  const lineEnd = lineEndIndex === -1 ? message.length : lineEndIndex + 1
+  return message.substring(0, lineStart) + prefix + content + "\n" + message.substring(lineEnd)
 }
 
 function insertLine(message: string, prefix: string, content: string, previousLinePrefix?: string): string {

@@ -29,4 +29,16 @@ describe("editLine", () => {
     const result = editLine(message, "What: ", "4", "something")
     expect(result).toBe(`Hi: 1\nHello: 2\nBaz: 3\nWhat: 4\n`)
   })
+  test("editing last line", () => {
+    const result = editLine(message, "Baz: ", "4")
+    expect(result).toBe(`Hi: 1\nHello: 2\nBaz: 4\n`)
+    const result2 = editLine(message.trimEnd(), "Baz: ", "4")
+    expect(result2).toBe(`Hi: 1\nHello: 2\nBaz: 4\n`)
+  })
+  test("prefix is whole line", () => {
+    const result = editLine(message, "Hi: 1", "4")
+    expect(result).toBe(`Hi: 14\nHello: 2\nBaz: 3\n`)
+    const result2 = editLine(message, "Baz: 3", "4")
+    expect(result2).toBe(`Hi: 1\nHello: 2\nBaz: 34\n`)
+  })
 })

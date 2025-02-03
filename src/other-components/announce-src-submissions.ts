@@ -24,7 +24,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 4
+const MESSAGE_VERSION = 5
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -132,13 +132,12 @@ async function getMessageContent(
   const dateSeconds = Math.floor(submissionDate.getTime() / 1000)
 
   return `
-## ${gameName} / ${categoryName} by ${playerNames} in ${runTime}
+## ${gameName} | [${categoryName} by ${playerNames} in ${runTime}](${run.weblink})
 ${newPlayerMessage}${challengerMessage}
 
-${VideoPrefix}
+${VideoPrefix}(loading...)
+${StatusPrefix}(loading...)
 ${SubmittedPrefix}<t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
-${StatusPrefix}
-${run.weblink}
 `
 }
 function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
@@ -275,6 +274,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 
   async function maybeInitSrcPlayers() {
     if (await SrcPlayer.count()) return
+    if (process.env.NODE_ENV === "development") return
     logger.info(`Initializing table ${SrcPlayer.tableName}`)
     const players = new Set<string>()
     const hasVerifiedRuns = new Set<string>()
