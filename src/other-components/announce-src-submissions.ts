@@ -1,5 +1,18 @@
-import { Category, getAllRuns, getLeaderboard, getUser, Leaderboard, Player, PlayerUser, Run, User } from "src-ts"
-import { SrcPlayer, SrcRun } from "../db/index.js"
+import {
+  Category,
+  Game,
+  getAllRuns,
+  getGame,
+  getLeaderboard,
+  getUser,
+  Leaderboard,
+  Player,
+  PlayerUser,
+  Run,
+  User,
+  Variable,
+} from "src-ts"
+import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
 import { Client, Events, lazy, Message, MessageFlags, SendableChannels } from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
@@ -24,7 +37,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 5
+const MESSAGE_VERSION = 6
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -81,7 +94,7 @@ function isChallengerRun(_run: RunWithEmbeds, category: Category | undefined, pl
   return place <= 5
 }
 
-function findPlaceInLeaderboard(leaderboard: Leaderboard<"game,category">, run: RunWithEmbeds) {
+function findPlaceInLeaderboard(leaderboard: Leaderboard<"category">, run: RunWithEmbeds) {
   // find first run with slower time; this run replaces it
   const index = leaderboard.runs.findIndex((x) => x.run.times.primary_t > run.times.primary_t)
   if (index === -1) {
@@ -92,14 +105,26 @@ function findPlaceInLeaderboard(leaderboard: Leaderboard<"game,category">, run: 
 
 const logger = createLogger("[AnnounceSrcSubmissions]")
 
+async function getActualLeaderboard(game: GameData, run: RunWithEmbeds): Promise<Leaderboard<"category"> | undefined> {
+  const leaderboardRunVars: Record<string, string> = {}
+  for (const variableId in run.values) {
+    const varData = game.variablesById.get(variableId)
+    if (varData?.["is-subcategory"]) {
+      leaderboardRunVars[variableId] = run.values[variableId]!
+    }
+  }
+
+  return await getLeaderboard(run.game, run.category, leaderboardRunVars, { embed: "category" })
+}
 async function getMessageContent(
   run: RunWithEmbeds,
   players: PlayerWithDbPlayer[],
   config: AnnounceSrcSubmissionsConfig,
 ) {
-  const leaderboard = await getLeaderboard(run.game, run.category, run.values, { embed: "game,category" })
-  const game = Array.isArray(leaderboard.game.data) ? undefined : leaderboard.game.data
-  const category = Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data
+  const gameData = await getGameCached(run.game)
+  const game = gameData.game
+  const leaderboard = await getActualLeaderboard(gameData, run)
+  const category = leaderboard && (Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data)
 
   const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
   const newPlayerMessage =
@@ -107,10 +132,19 @@ async function getMessageContent(
       ? `🎉 **First time submission:** ${newPlayers.map((x) => x.srcPlayer.names.international).join(", ")}\n`
       : ""
 
-  const place = findPlaceInLeaderboard(leaderboard, run)
-  const placeText = place == 1 ? "🥇 A New World Record" : place === 2 ? "🥈" : place === 3 ? "🥉" : formatPlace(place)
+  const place = leaderboard && findPlaceInLeaderboard(leaderboard, run)
+  const placeText =
+    place === undefined
+      ? "Unknown"
+      : place === 1
+        ? "🥇 A New World Record"
+        : place === 2
+          ? "🥈"
+          : place === 3
+            ? "🥉"
+            : formatPlace(place)
 
-  const isChallenger = category && isChallengerRun(run, category, place)
+  const isChallenger = category && place && isChallengerRun(run, category, place)
   const challengerMessage = isChallenger ? `**🏆 Challenger run:** May be ${placeText}!` : `May be ${placeText}`
 
   function getPlayerNamesStr(players: Player[]): string {
@@ -124,7 +158,7 @@ async function getMessageContent(
       : getPlayerNamesStr(run.players.data.slice(0, 3)) + `, and ${run.players.data.length - 3} more`
 
   const categoryName = category?.name ?? "Unknown category"
-  const gameName = config.games.find((x) => x.id === run.game)?.nickname ?? game?.names.international ?? "Unknown game"
+  const gameName = config.games.find((x) => x.id === game.id)?.nickname ?? game?.names.international ?? "Unknown game"
 
   const runTime = formatDuration(parse(run.times.primary))
 
@@ -178,7 +212,9 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     if (isNewMessage) {
       message = await createRunMessage(srcRun, dbRun, await players(), notifyChannel)
     }
-    const shouldUpdateWholeMessage = isNewMessage || dbRun.messageVersion !== MESSAGE_VERSION
+    const shouldRefreshMessageContent =
+      !isNewMessage && (dbRun.messageVersion !== MESSAGE_VERSION || status == SrcRunStatus.New)
+    const shouldUpdateAllComponents = shouldRefreshMessageContent || isNewMessage
 
     async function updateMessage() {
       let content: string | undefined
@@ -190,27 +226,27 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         }
         if (!message) return
         if (!content) {
-          if (dbRun.messageVersion === MESSAGE_VERSION) {
-            content = message.content
-          } else {
+          if (shouldRefreshMessageContent) {
             content = await getMessageContent(srcRun, await players(), config)
+          } else {
+            content = message.content
           }
         }
         content = await fn(content)
         logger.debug("New content:", content)
       }
 
-      const shouldUpdateStatus = shouldUpdateWholeMessage || dbRun.lastStatus !== status
+      const shouldUpdateStatus = shouldUpdateAllComponents || dbRun.lastStatus !== status
       if (shouldUpdateStatus) {
         logger.info("Updating status", srcRun.id)
         await editContent(updateRunStatusInMessage.bind(undefined, srcRun))
       }
-      const shouldUpdateVideo = shouldUpdateWholeMessage || srcRun.status.status === "new"
+      const shouldUpdateVideo = shouldUpdateAllComponents || srcRun.status.status === "new"
       if (shouldUpdateVideo) {
         logger.info("Updating video", srcRun.id)
         await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
       }
-      if (message && content && (message.content !== content || shouldUpdateWholeMessage)) {
+      if (message && content && (message.content !== content || shouldUpdateAllComponents)) {
         logger.info("Editing message", srcRun.id)
         await message.edit({ content, flags: MessageFlags.SuppressEmbeds })
         dbRun.messageVersion = MESSAGE_VERSION
@@ -315,7 +351,7 @@ interface RunWithMaybeDbRun {
  */
 async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]> {
   const allDbRuns = await SrcRun.findAll({ order: [["submissionTime", "desc"]] })
-  const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now())
+  const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now() - 60 * 60 * 24 * 1000)
   const earliestSavedSubmission = allDbRuns[allDbRuns.length - 1]?.submissionTime ?? latestSavedSubmission
 
   const newStatusRuns = gameIds.map((gameId) =>
@@ -488,14 +524,27 @@ function launch<T>(promise: Promise<T>) {
   void logErrors(promise)
 }
 
-const userCache = new Map<string, Promise<User>>()
+interface GameData {
+  game: Game<"variables">
+  variablesById: Map<string, Variable>
+}
 
+const userCache = new Map<string, Promise<User>>()
+const gameCache = new Map<string, Promise<GameData>>()
 function clearCaches() {
   userCache.clear()
+  gameCache.clear()
 }
 
 function getUserCached(userId: string) {
   return getCached(userId, userCache, getUser)
+}
+function getGameCached(gameId: string) {
+  return getCached(gameId, gameCache, async (id) => {
+    const game = await getGame(id, { embed: "variables" })
+    const variables = new Map(game.variables.data.map((x) => [x.id, x]))
+    return { game, variablesById: variables }
+  })
 }
 
 function getCached<T>(id: string, cache: Map<string, Promise<T>>, getById: (id: string) => Promise<T>): Promise<T> {
