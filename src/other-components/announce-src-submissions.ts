@@ -246,7 +246,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         logger.info("Updating video", srcRun.id)
         await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
       }
-      if (message && content && (message.content !== content || shouldUpdateAllComponents)) {
+      if (message && content && (message.content !== content || shouldUpdateAllComponents || shouldRefreshMessageContent)) {
         logger.info("Editing message", srcRun.id)
         await message.edit({ content, flags: MessageFlags.SuppressEmbeds })
         dbRun.messageVersion = MESSAGE_VERSION
