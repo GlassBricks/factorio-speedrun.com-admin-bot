@@ -205,8 +205,6 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     const status = statusStrToStatus(srcRun.status.status)
     const players = lazy(() => getOrAddPlayers(srcRun))
 
-    dbRun.lastStatus = status
-
     let message: Message | undefined
     const isNewMessage = !dbRun.messageChannelId || !dbRun.messageId
     if (isNewMessage) {
@@ -240,6 +238,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       if (shouldUpdateStatus) {
         logger.info("Updating status", srcRun.id)
         await editContent(updateRunStatusInMessage.bind(undefined, srcRun))
+        dbRun.lastStatus = status
       }
       const shouldUpdateVideo = shouldUpdateAllComponents || srcRun.status.status === "new"
       if (shouldUpdateVideo) {
