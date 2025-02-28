@@ -37,7 +37,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 6
+const MESSAGE_VERSION = 7
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -78,9 +78,10 @@ const TwitchVideoMessage = {
 
 const StatusPrefix = "**Status:** "
 const StatusMessage = {
-  new: "⏳New",
-  verified: "✅ Verified by %p",
-  rejected: "❌ Rejected by %p",
+  new: "⏳ new",
+  verified: "verified by %p",
+  rejected: "❌ rejected by %p",
+  selfVerified: "auto-verified",
 }
 
 const YoutubeVideoMessage = "Found [YouTube video](%url)"
@@ -245,7 +246,11 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         logger.info("Updating video", srcRun.id)
         await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
       }
-      if (message && content && (message.content !== content || shouldUpdateAllComponents || shouldRefreshMessageContent)) {
+      if (
+        message &&
+        content &&
+        (message.content !== content || shouldUpdateAllComponents || shouldRefreshMessageContent)
+      ) {
         logger.info("Editing message", srcRun.id)
         await message.edit({ content, flags: MessageFlags.SuppressEmbeds })
         dbRun.messageVersion = MESSAGE_VERSION
@@ -465,9 +470,17 @@ async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {
 }
 
 async function getStatusText(run: RunWithEmbeds) {
-  const examinerName = "examiner" in run.status ? (await getUserCached(run.status.examiner)).names.international : ""
-  const status = StatusMessage[run.status.status] ?? "Unknown"
-  return status.replace("%p", examinerName)
+  const examinerId = "examiner" in run.status ? run.status.examiner : undefined
+  const isSelfVerified =
+    run.status.status == "verified" && run.players.data.some((x: Player) => x.rel === "user" && x.id === examinerId)
+
+  const status = isSelfVerified ? "selfVerified" : run.status.status
+  const statusMessage = StatusMessage[status] ?? "Unknown"
+  if (statusMessage.includes("%p")) {
+    const examinerName = "examiner" in run.status ? (await getUserCached(run.status.examiner)).names.international : ""
+    return statusMessage.replace("%p", examinerName)
+  }
+  return statusMessage
 }
 
 async function updateRunStatusInMessage(run: RunWithEmbeds, content: string): Promise<string> {
