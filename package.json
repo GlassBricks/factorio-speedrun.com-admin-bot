@@ -10,8 +10,7 @@
     "watch": "tsc -w",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
-    "check": "npm run lint && tsc --noEmit && npm test",
-    "pm2:start": "pm2 startOrRestart ecosystem.config.cjs"
+    "check": "npm run lint && tsc --noEmit && npm test"
   },
   "type": "module",
   "dependencies": {
@@ -21,7 +20,6 @@
     "dotenv": "^16.4.7",
     "iso8601-duration": "^2.1.2",
     "node-schedule": "^2.1.1",
-    "pm2": "^5.4.3",
     "reflect-metadata": "^0.2.2",
     "sequelize": "^6.37.5",
     "sequelize-typescript": "^2.1.6",
