@@ -37,7 +37,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 7
+const MESSAGE_VERSION = 8
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -97,7 +97,7 @@ function isChallengerRun(_run: RunWithEmbeds, category: Category | undefined, pl
 
 function findPlaceInLeaderboard(leaderboard: Leaderboard<"category">, run: RunWithEmbeds) {
   // find first run with slower time; this run replaces it
-  const index = leaderboard.runs.findIndex((x) => x.run.times.primary_t > run.times.primary_t)
+  const index = leaderboard.runs.findIndex((x) => x.run.times.primary_t > run.times.primary_t || x.run.id === run.id)
   if (index === -1) {
     return leaderboard.runs.length + 1
   }
