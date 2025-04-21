@@ -3,9 +3,9 @@ import { scheduleJob } from "node-schedule"
 import { createLogger } from "./logger.js"
 
 class TwitchClient {
-  token?: string
-  refreshTokenJob?: Promise<void>
-  ratelimitWaitJob?: Promise<void>
+  private token?: string
+  private refreshTokenJob?: Promise<void>
+  private ratelimitWaitJob?: Promise<void>
 
   logger = createLogger("[TwitchClient]")
 
@@ -14,7 +14,7 @@ class TwitchClient {
     readonly secret: string,
   ) {}
 
-  async doRefreshToken() {
+  private async doRefreshToken() {
     this.token = undefined
     this.logger.info("Refreshing token")
     const response = await fetch(
