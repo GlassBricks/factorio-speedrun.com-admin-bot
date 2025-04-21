@@ -1,4 +1,4 @@
-import { Snowflake } from "discord.js"
+import { MessageMentionOptions, Snowflake } from "discord.js"
 
 export interface Config {
   botName?: string
@@ -71,7 +71,10 @@ export interface AnnounceSrcSubmissionsConfig {
     nickname?: string
   }[]
   cronSchedule: string
-  announceNewPlayersMessage?: string
+  announceNewPlayersMessage?: {
+    message: string
+    allowedMentions?: MessageMentionOptions
+  }
 }
 
 export interface AutoReactConfig {

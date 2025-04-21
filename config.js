@@ -95,7 +95,12 @@ If %n %r reacts are received %e, ` + reelectDescription,
       },
     ],
     cronSchedule: "*/15 * * * *",
-    announceNewPlayersMessage: `🎉 **%p** had their first verified run! Consider giving them the <@&${Roles.Speedrunner}> role.\n<@&${Roles.SrcAdmin}>`,
+    announceNewPlayersMessage: {
+      message: `🎉 **%p** had their first verified run! Consider giving them the <@&${Roles.Speedrunner}> role.\n<@&${Roles.SrcAdmin}>`,
+      allowedMentions: {
+        roles: [Roles.SrcAdmin],
+      },
+    },
   },
   autoReact: [
     {

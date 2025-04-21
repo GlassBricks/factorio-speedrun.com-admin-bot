@@ -3,6 +3,9 @@ const Channels = {
   General: "1313690533406703739",
   NotGeneral: "1314039140169420830",
 }
+const Roles = {
+  Notif: "1314038714153828392",
+}
 
 /** @typedef {import("./src/config-file.ts").Config} Config */
 /** @type {Config} */
@@ -48,7 +51,12 @@ const config = {
       },
     ],
     cronSchedule: "*/15 * * * *",
-    announceNewPlayersMessage: `🎉 **%p** had their first verified run!`,
+    announceNewPlayersMessage: {
+      message: `🎉 **%p** had their first verified run! Notif: <@&${Roles.Notif}>.`,
+      allowedMentions: {
+        roles: [Roles.Notif],
+      },
+    },
   },
   autoReact: [
     {

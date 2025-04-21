@@ -304,8 +304,11 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     if (config.announceNewPlayersMessage && message) {
       try {
         const playerNames = newPlayers.map((x) => x.srcPlayer.names.international).join(", ")
-        const messageContent = config.announceNewPlayersMessage.replace("%p", playerNames)
-        await message.reply(messageContent)
+        const messageContent = config.announceNewPlayersMessage.message.replace("%p", playerNames)
+        await message.reply({
+          content: messageContent,
+          allowedMentions: config.announceNewPlayersMessage.allowedMentions,
+        })
       } catch (e) {
         logger.error(e)
       }
