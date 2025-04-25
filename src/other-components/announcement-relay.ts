@@ -112,6 +112,9 @@ class AnnouncementRelay {
       await existingMessage.destroy()
       return false
     }
+    if (srcMessage.content === dstMessage.content) {
+      return true
+    }
     await dstMessage.edit(srcMessage.content)
     this.runCatching(srcMessage.author.send(`Edited announcement: ${dstMessage.url}`))
 
