@@ -102,12 +102,18 @@ class AnnouncementRelay {
 
     const dstMessage = await dstChannel.messages.fetch(existingMessage.dstMessageId).catch(() => undefined)
     if (!dstMessage) {
-      this.logger.warn("Destination message in db not found! Deleting from db:", existingMessage.dstMessageId)
+      this.logger.warn("Announcement message not found! Deleting from db:", existingMessage.dstMessageId)
+      this.runCatching(
+        srcMessage.author.send(
+          "Failed to edit, announcement message not found! Was the announcement deleted?\n" +
+            `Re-react with ${this.config.confirmReact} to create a new announcement.`,
+        ),
+      )
       await existingMessage.destroy()
       return false
     }
     await dstMessage.edit(srcMessage.content)
-    void srcMessage.author.send(`Edited announcement: ${dstMessage.url}`)
+    this.runCatching(srcMessage.author.send(`Edited announcement: ${dstMessage.url}`))
 
     return true
   }
