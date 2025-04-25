@@ -7,6 +7,7 @@ import config from "./config-file.js"
 import { setUpVoteInitiateCommand } from "./other-components/vote-initiate.js"
 import { setUpAnnounceFactorioVersion } from "./other-components/announce-factorio-version.js"
 import { setUpAnnounceSrcSubmissions } from "./other-components/announce-src-submissions.js"
+import { setUpAnnouncementRelay } from "./other-components/announcement-relay.js"
 
 dotEnvConfig()
 
@@ -20,7 +21,7 @@ const client = new SapphireClient({
     GatewayIntentBits.MessageContent,
     GatewayIntentBits.DirectMessages,
   ],
-  partials: [Partials.User, Partials.Reaction, Partials.Channel],
+  partials: [Partials.User, Partials.Reaction, Partials.Channel, Partials.Message],
   loadDefaultErrorListeners: true,
   loadMessageCommandListeners: true,
   logger: {
@@ -35,6 +36,9 @@ if (config.botName) {
   })
 }
 
+for (const a of config.announcementRelay ?? []) {
+  setUpAnnouncementRelay(client, a)
+}
 setUpVoteInitiateCommand(client, config.voteInitiateCommands)
 setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
 setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)

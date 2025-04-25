@@ -56,6 +56,19 @@ export enum SrcRunStatus {
 }
 
 @Table
+export class AnnounceMessage extends Model<InferAttributes<AnnounceMessage>, InferCreationAttributes<AnnounceMessage>> {
+  @PrimaryKey
+  @Column
+  declare srcMessageId: Snowflake
+
+  @Column
+  declare dstMessageId: Snowflake
+
+  @Column
+  declare dstChannelId: Snowflake
+}
+
+@Table
 export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttributes<SrcRun>> {
   @PrimaryKey
   @Column
@@ -84,5 +97,5 @@ export const sequelize = new Sequelize({
   dialect: "sqlite",
   storage: dev ? ":memory:" : "database.sqlite",
   // storage: "database.sqlite",
-  models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun],
+  models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun, AnnounceMessage],
 })

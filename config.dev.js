@@ -58,6 +58,13 @@ const config = {
       },
     },
   },
+  announcementRelay: [
+    {
+      fromChannelId: Channels.NotGeneral,
+      toChannelId: Channels.General,
+      confirmReact: "📣",
+    },
+  ],
   autoReact: [
     {
       onBotMention: true,

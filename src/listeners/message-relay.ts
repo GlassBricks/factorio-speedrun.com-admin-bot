@@ -10,14 +10,6 @@ import { Message, OmitPartialGroupDMChannel } from "discord.js"
 export class MessageRelayListener extends Listener {
   private static relayMap = new Map<string, MessageRelayConfig>(config.messageRelay?.map((c) => [c.fromChannelId, c]))
 
-  formatMessage(config: MessageRelayConfig, template: string, user: string, originalContent: string): string {
-    return template
-      .replace("%f", `<#${config.fromChannelId}>`)
-      .replace("%t", `<#${config.toChannelId}>`)
-      .replace("%u", `<@${user}>`)
-      .replace("%m", originalContent)
-  }
-
   async run(message: OmitPartialGroupDMChannel<Message>) {
     if (message.author.bot) return // Ignore bot messages
     const relayConfig = MessageRelayListener.relayMap.get(message.channelId)

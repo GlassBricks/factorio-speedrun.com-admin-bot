@@ -3,8 +3,9 @@ import { MessageMentionOptions, Snowflake } from "discord.js"
 export interface Config {
   botName?: string
   announceCommand?: AnnounceCommandConfig
-  voteInitiateCommands?: VoteInitiateCommandConfig[]
   messageRelay?: MessageRelayConfig[]
+  announcementRelay?: AnnouncementRelayConfig[]
+  voteInitiateCommands?: VoteInitiateCommandConfig[]
   announceNewFactorioVersion?: AnnounceFactorioVersionConfig
   autoReact?: AutoReactConfig[]
   announceSrcSubmissions?: AnnounceSrcSubmissionsConfig
@@ -57,6 +58,12 @@ export interface MessageRelayConfig {
   toChannelId: Snowflake
   dmMessage?: string
   relayMessage: string
+}
+
+export interface AnnouncementRelayConfig {
+  fromChannelId: Snowflake
+  toChannelId: Snowflake
+  confirmReact: string
 }
 
 export interface AnnounceFactorioVersionConfig {

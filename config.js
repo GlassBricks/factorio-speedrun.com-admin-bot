@@ -5,6 +5,7 @@ const Roles = {
 }
 const Channels = {
   SrcAnnouncements: "1313654063526580255",
+  SrcAnnouncementsStaging: "1364986348242473131",
   TranscriptsAndLogs: "1313648404232015892",
   SrcDiscussionContact: "1313675268392489053",
   FeedbackRelay: "1322336566705655838",
@@ -37,6 +38,13 @@ const config = {
     announceChannelId: Channels.SrcAnnouncements,
     auditLogChannelId: Channels.TranscriptsAndLogs,
   },
+  announcementRelay: [
+    {
+      fromChannelId: Channels.SrcAnnouncementsStaging,
+      toChannelId: Channels.SrcAnnouncements,
+      confirmReact: "📣",
+    },
+  ],
   voteInitiateCommands: [
     {
       id: "initiate_no_confidence_vote",
