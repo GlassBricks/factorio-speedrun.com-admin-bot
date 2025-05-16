@@ -81,7 +81,10 @@ class AnnouncementRelay {
     this.runCatching(srcMessage.react(this.config.confirmReact))
 
     const dstChannel = await this.getChannel(srcMessage.guild, this.config.toChannelId)
-    const dstMessage = await dstChannel.send(srcMessage.content)
+    const dstMessage = await dstChannel.send({
+      content: srcMessage.content,
+      files: Array.from(srcMessage.attachments.values()),
+    })
     const dbMessage = new AnnounceMessage({
       srcMessageId: srcMessage.id,
       dstMessageId: dstMessage.id,
