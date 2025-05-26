@@ -99,5 +99,10 @@ If %n %r reacts are received %e, ` + reelectDescription,
       reactions: ["🍎"],
     },
   ],
+  messageReport: {
+    reportNotifyRoles: [Roles.SrcAdmin],
+    logChannelId: Channels.TranscriptsAndLogs,
+    reportThreshold: 3,
+  },
 }
 export default config
