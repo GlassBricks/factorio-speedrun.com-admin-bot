@@ -11,21 +11,6 @@ const Roles = {
 /** @type {Config} */
 const config = {
   botName: "SRC Admin Team",
-  announceCommand: {
-    guildIds: [GuildID],
-
-    announceToCommandName: "announce_to",
-    announceToDescription: `Send a message to #src-announcements as the bot. Use 2 spaces for a newline.`,
-    // announceToIdHint: ["1316945027116564564"],
-
-    announceCommandName: "announce",
-    announceDescription: "Send a message to a specified channel as the bot. Use 2 spaces for a newline.",
-    // announceIdHint: ["1320472656222617662"],
-
-    // requiredRoles: [Roles.SrcAdmin],
-    announceChannelId: Channels.SrcAnnouncements,
-    auditLogChannelId: Channels.TranscriptsAndLogs,
-  },
   messageRelay: [
     {
       fromChannelId: Channels.General,

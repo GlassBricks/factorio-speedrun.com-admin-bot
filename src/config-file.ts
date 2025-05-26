@@ -2,28 +2,12 @@ import { MessageMentionOptions, Snowflake } from "discord.js"
 
 export interface Config {
   botName?: string
-  announceCommand?: AnnounceCommandConfig
   messageRelay?: MessageRelayConfig[]
   announcementRelay?: AnnouncementRelayConfig[]
   voteInitiateCommands?: VoteInitiateCommandConfig[]
   announceNewFactorioVersion?: AnnounceFactorioVersionConfig
   autoReact?: AutoReactConfig[]
   announceSrcSubmissions?: AnnounceSrcSubmissionsConfig
-}
-
-export interface AnnounceCommandConfig {
-  guildIds?: Snowflake[]
-
-  announceToCommandName: string
-  announceToDescription: string
-  announceToIdHint: string[] | undefined
-  announceCommandName: string
-  announceDescription: string
-  announceIdHint: string[] | undefined
-
-  requiredRoles?: Snowflake[]
-  announceChannelId: Snowflake
-  auditLogChannelId: Snowflake
 }
 
 export interface VoteInitiateCommandConfig {
