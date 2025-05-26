@@ -33,8 +33,8 @@ export class KnownFactorioVersion extends Model<
   @Column
   declare experimental?: VersionString
 
-  static get(): Promise<KnownFactorioVersion> {
-    return KnownFactorioVersion.findOne().then((v) => v ?? new KnownFactorioVersion())
+  static async get(): Promise<KnownFactorioVersion> {
+    return (await KnownFactorioVersion.findOne()) ?? new KnownFactorioVersion()
   }
 }
 
