@@ -63,5 +63,12 @@ const config = {
       reactions: ["🍎"],
     },
   ],
+  messageReport: {
+    reportableChannels: [Channels.General],
+    reportNotifyRoles: [Roles.Notif],
+    requiredRoles: [Roles.Notif],
+    logChannelId: Channels.NotGeneral,
+    reportThreshold: 1,
+  },
 }
 export default config

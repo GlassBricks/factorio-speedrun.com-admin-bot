@@ -92,10 +92,25 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   declare messageVersion?: number
 }
 
+@Table
+export class MessageReport extends Model<InferAttributes<MessageReport>, InferCreationAttributes<MessageReport>> {
+  @PrimaryKey
+  @Index
+  @Column
+  declare messageId: Snowflake
+
+  @PrimaryKey
+  @Column
+  declare reporterId: Snowflake
+
+  @Column
+  declare reason?: string
+}
+
 const dev = process.env.NODE_ENV === "development"
 export const sequelize = new Sequelize({
   dialect: "sqlite",
   storage: dev ? ":memory:" : "database.sqlite",
   // storage: "database.sqlite",
-  models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun, AnnounceMessage],
+  models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun, AnnounceMessage, MessageReport],
 })
