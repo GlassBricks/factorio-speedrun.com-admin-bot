@@ -46,7 +46,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 10
+const MESSAGE_VERSION = 11
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -362,6 +362,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     await message.edit({
       content: null,
       embeds: [createEmbed(parts, message.embeds[0])],
+      flags: "0",
     })
   }
 
