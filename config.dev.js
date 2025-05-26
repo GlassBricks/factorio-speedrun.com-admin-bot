@@ -25,19 +25,10 @@ const config = {
   },
   announceSrcSubmissions: {
     channelId: Channels.NotGeneral,
-    games: [
-      {
-        id: "9d35xw1l",
-        nickname: "⚙️ Factorio",
-      },
-      {
-        id: "ldewr7ed",
-        nickname: "🚀 Space Age",
-      },
-    ],
+    games: [{ id: "9d35xw1l" }, { id: "ldewr7ed" }],
     cronSchedule: "*/15 * * * *",
     announceNewPlayersMessage: {
-      message: `🎉 **%p** had their first verified run! Notif: <@&${Roles.Notif}>.`,
+      message: `🎉 **%p** had their first verified run! <@&${Roles.Notif}>.`,
       allowedMentions: {
         roles: [Roles.Notif],
       },

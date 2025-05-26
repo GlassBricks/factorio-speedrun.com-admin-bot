@@ -3,6 +3,7 @@ import {
   ChatInputCommandInteraction,
   Client,
   ContextMenuCommandInteraction,
+  ContextMenuCommandType,
   InteractionContextType,
   Message,
 } from "discord.js"
@@ -37,7 +38,7 @@ export class ReportCommand extends Command {
       builder
         .setName("Report Message")
         .setContexts(InteractionContextType.Guild)
-        .setType(ApplicationCommandType.Message)
+        .setType(ApplicationCommandType.Message as ContextMenuCommandType)
         .setDefaultMemberPermissions("0"),
     )
   }

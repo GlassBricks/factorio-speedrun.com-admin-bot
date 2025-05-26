@@ -68,50 +68,6 @@ export async function getAllRunsSince<Embed extends string = "", S = Run<Embed>>
   })
 }
 
-function findIndexOfLine(message: string, prefix: string) {
-  if (message.startsWith(prefix)) return 0
-  const index = message.indexOf("\n" + prefix)
-  if (index === -1) return undefined
-  return index + 1
-}
-
-export function editLine(
-  message: string,
-  prefix: string,
-  content: string,
-  previousLinePrefixIfMissing?: string,
-): string {
-  if (content.includes("\n")) {
-    content = content.replace(/\n/g, "  ")
-  }
-  // find the line with the prefix
-  const prefixIndex = findIndexOfLine(message, prefix)
-  if (prefixIndex === undefined) {
-    return insertLine(message, prefix, content, previousLinePrefixIfMissing)
-  }
-
-  const lineStart = prefixIndex
-  const lineEndIndex = message.indexOf("\n", prefixIndex)
-  const lineEnd = lineEndIndex === -1 ? message.length : lineEndIndex + 1
-  return message.substring(0, lineStart) + prefix + content + "\n" + message.substring(lineEnd)
-}
-
-function insertLine(message: string, prefix: string, content: string, previousLinePrefix?: string): string {
-  if (previousLinePrefix !== undefined) {
-    const prevLineIndex = findIndexOfLine(message, previousLinePrefix)
-    if (prevLineIndex !== undefined) {
-      const nextLineIndex = message.indexOf("\n", prevLineIndex)
-      if (nextLineIndex !== -1) {
-        return message.substring(0, nextLineIndex + 1) + prefix + content + "\n" + message.substring(nextLineIndex + 1)
-      }
-    }
-  }
-  if (!message.endsWith("\n")) {
-    message += "\n"
-  }
-  return message + prefix + content + "\n"
-}
-
 export function statusStrToStatus(status: "new" | "verified" | "rejected"): SrcRunStatus {
   switch (status) {
     case "new":

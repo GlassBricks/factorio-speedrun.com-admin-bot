@@ -1,4 +1,4 @@
-import { Client, Events, MessageCreateOptions, SendableChannels } from "discord.js"
+import { Client, EmbedBuilder, Events, HexColorString, MessageCreateOptions, SendableChannels } from "discord.js"
 import { scheduleJob } from "node-schedule"
 import { AnnounceFactorioVersionConfig } from "../config-file.js"
 import { createLogger } from "../logger.js"
@@ -39,23 +39,24 @@ function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
     const lastKnownObj = { stable: lastKnownEntry.stable, experimental: lastKnownEntry.experimental }
     let changed = false
     for (const key of ["stable", "experimental"] as const) {
-      if (current[key] !== lastKnownObj[key]) {
-        const versionTypeStr = key === "stable" ? "Stable" : "Experimental"
-        const versionChangeMsg = `${lastKnownObj[key] ?? "unknown"} ⇨ ${current[key]}`
-        const embedColor = key === "stable" ? 0xffa500 : 0x00ff00 // orange for stable, green for experimental
-        logger.info(`New ${versionTypeStr} version: ${versionChangeMsg}`)
+      const oldVersion = lastKnownObj[key]
+      const newVersion = current[key]
+      if (newVersion !== oldVersion) {
+        const oldVersionStr = oldVersion ?? "unknown"
+        // purple for stable, bluish for experimental
+        const color: HexColorString = key === "stable" ? "#b665d7" : "#43e7ff"
+        logger.info(`New ${key} version: ${oldVersionStr} -> ${newVersion}`)
         await send({
           embeds: [
-            {
-              title: `New ${key} Factorio Version`,
-              description: versionChangeMsg,
-              color: embedColor,
-            },
+            new EmbedBuilder()
+              .setTitle(`New ${key} version`)
+              .setDescription(`${oldVersionStr} -> **${newVersion}**`)
+              .setColor(color),
           ],
         })
         changed = true
       }
-      lastKnownEntry[key] = current[key]
+      lastKnownEntry[key] = newVersion
     }
     if (!changed) {
       logger.info("No new versions")

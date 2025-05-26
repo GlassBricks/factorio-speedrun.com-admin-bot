@@ -12,13 +12,22 @@ import {
   User,
   Variable,
 } from "src-ts"
-import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
-import { Client, Events, lazy, Message, MessageFlags, SendableChannels } from "discord.js"
+import { SrcPlayer, SrcRun } from "../db/index.js"
+import {
+  APIEmbedField,
+  Client,
+  Embed,
+  EmbedBuilder,
+  Events,
+  HexColorString,
+  lazy,
+  Message,
+  SendableChannels,
+} from "discord.js"
 import { AnnounceSrcSubmissionsConfig } from "../config-file.js"
 import {
   assertNever,
   botCanSendInChannel,
-  editLine,
   formatDuration,
   formatPlace,
   getAllRunsSince,
@@ -37,7 +46,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 9
+const MESSAGE_VERSION = 10
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -52,8 +61,6 @@ interface RunWithDbRun {
   srcRun: RunWithEmbeds
 }
 
-const SubmittedPrefix = "**Submitted:** "
-
 type TwitchVideoType = "archive" | "highlight" | "upload" | "offline" | "unknown"
 
 interface TwitchVideoInfo {
@@ -67,32 +74,51 @@ interface YoutubeVideoInfo {
   url: string
 }
 
-const VideoPrefix = "**Video proof:** "
 const TwitchVideoMessage = {
-  archive: "Found [Twitch VOD](%url) (not a permanent video!!)",
-  highlight: "Found [Twitch highlight](%url)",
-  upload: "Found [uploaded Twitch video](%url)",
-  offline: "Found [offline Twitch video](%url) (Twitch returned 404)",
-  unknown: "Found [Twitch video](%url), status unknown. (Fix me @GlassBricks !)",
+  archive: "[Twitch VOD](%url) (not a permanent video!!)",
+  highlight: "[Twitch highlight](%url)",
+  upload: "[Uploaded Twitch video](%url)",
+  offline: "[Offline Twitch video](%url) (Twitch returned 404)",
+  unknown: "[Twitch video](%url), status unknown. (Fix me @GlassBricks !)",
 }
 
-const StatusPrefix = "**Status:** "
-const StatusMessage = {
-  new: "⏳ new",
-  verified: "verified by %p",
-  rejected: "❌ rejected by %p",
-  selfVerified: "auto-verified",
-}
-
-const YoutubeVideoMessage = "Found [YouTube video](%url)"
+const YoutubeVideoMessage = "[YouTube video](%url)"
 const NoVideoMessage = "None found"
 
+// type RunStatus = "new" | "verified" | "rejected" | "selfVerified"
+enum RunStatus {
+  New = "New",
+  Verified = "Verified",
+  Rejected = "Rejected",
+  SelfVerified = "SelfVerified",
+}
+
+const StatusMessage: Record<RunStatus, string> = {
+  [RunStatus.New]: "⏳ new",
+  [RunStatus.Verified]: "verified by %p",
+  [RunStatus.Rejected]: "❌ rejected by %p",
+  [RunStatus.SelfVerified]: "auto-verified",
+}
+
+const StatusColor: Record<RunStatus, HexColorString> = {
+  // yellowish
+  [RunStatus.New]: "#ffee20",
+  // green
+  [RunStatus.Verified]: "#20ff20",
+  // red
+  [RunStatus.Rejected]: "#ff5050",
+  // blue-green
+  [RunStatus.SelfVerified]: "#75ff94",
+}
+
 // hardcoded for now
-function isChallengerRun(_run: RunWithEmbeds, category: Category | undefined, place: number) {
-  if (category?.name.toLowerCase().includes("category extensions")) {
-    return place <= 3
-  }
-  return place <= 5
+function isChallengerRun(
+  leaderboard: Leaderboard<"category"> | undefined,
+  _run: RunWithEmbeds,
+  _category: Category | undefined,
+  place: number,
+): boolean {
+  return (leaderboard?.runs?.length ?? 0) >= 3 && place <= 3
 }
 
 function findPlaceInLeaderboard(leaderboard: Leaderboard<"category">, run: RunWithEmbeds) {
@@ -117,37 +143,37 @@ async function getActualLeaderboard(game: GameData, run: RunWithEmbeds): Promise
 
   return await getLeaderboard(run.game, run.category, leaderboardRunVars, { embed: "category" })
 }
-async function getMessageContent(
-  run: RunWithEmbeds,
-  players: PlayerWithDbPlayer[],
-  config: AnnounceSrcSubmissionsConfig,
-) {
+
+interface RunMessageParts {
+  title: string
+  description: string
+  thumbnail: string
+  timestamp: Date
+  color: HexColorString
+
+  firstTimeSubmissionPlayers: string[]
+  isChallengerRun: boolean
+  place: number | undefined
+  videoProof: string
+  status: string
+}
+
+/**
+ * Does not include: videoProof, status
+ *
+ * That will be filled in later in `processRun`
+ */
+async function getInitialMessage(run: RunWithEmbeds, players: PlayerWithDbPlayer[]): Promise<RunMessageParts> {
   const gameData = await getGameCached(run.game)
   const game = gameData.game
   const leaderboard = await getActualLeaderboard(gameData, run)
   const category = leaderboard && (Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data)
 
-  const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
-  const newPlayerMessage =
-    newPlayers.length > 0
-      ? `🎉 **First time submission:** ${newPlayers.map((x) => x.srcPlayer.names.international).join(", ")}\n`
-      : ""
+  const firstTimeSubmissionPlayers = players
+    .filter((x) => !x.dbPlayer.hasVerifiedRun)
+    .map((x) => x.srcPlayer.names.international)
 
   const place = leaderboard && findPlaceInLeaderboard(leaderboard, run)
-  const placeText =
-    place === undefined
-      ? "Unknown"
-      : place === 1
-        ? "🥇 A New World Record"
-        : place === 2
-          ? "🥈"
-          : place === 3
-            ? "🥉"
-            : formatPlace(place)
-
-  const isChallenger = category && place && isChallengerRun(run, category, place)
-  const challengerMessage = isChallenger ? `**🏆 Challenger run:** May be ${placeText}!` : `May be ${placeText}`
-
   function getPlayerNamesStr(players: Player[]): string {
     return players
       .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
@@ -159,21 +185,84 @@ async function getMessageContent(
       : getPlayerNamesStr(run.players.data.slice(0, 3)) + `, and ${run.players.data.length - 3} more`
 
   const categoryName = category?.name ?? "Unknown category"
-  const gameName = config.games.find((x) => x.id === game.id)?.nickname ?? game?.names.international ?? "Unknown game"
+  const gameName = game.names.international
+  const durationStr = formatDuration(parse(run.times.primary))
+  return {
+    title: "Run submission",
+    description: `## ${gameName} | [${categoryName} by ${playerNames} in ${durationStr}](${run.weblink})`,
+    thumbnail: `https://www.speedrun.com/static/game/${game.id}/cover.png`,
+    timestamp: new Date(run.submitted!),
+    color: StatusColor[getRunStatus(run)],
 
-  const runTime = formatDuration(parse(run.times.primary))
+    firstTimeSubmissionPlayers,
+    isChallengerRun:
+      category !== undefined && place !== undefined && isChallengerRun(leaderboard, run, category, place),
+    place: place ?? -1,
+    videoProof: "",
+    status: "",
+  }
+}
 
-  const submissionDate = new Date(run.submitted!)
-  const dateSeconds = Math.floor(submissionDate.getTime() / 1000)
+function getEmbedFields(parts: Partial<RunMessageParts>, fromExisting?: APIEmbedField[]): APIEmbedField[] {
+  function field(
+    name: string,
+    keys: (keyof RunMessageParts)[],
+    valueFromParts: string | false | undefined,
+    inline: boolean = false,
+  ): APIEmbedField | undefined {
+    if (!keys.every((k) => k in parts)) {
+      return fromExisting?.find((x) => x.name === name)
+    } else if (!valueFromParts) {
+      return undefined
+    } else
+      return {
+        name,
+        value: valueFromParts,
+        inline,
+      }
+  }
 
-  return `
-## ${gameName} | [${categoryName} by ${playerNames} in ${runTime}](${run.weblink})
-${newPlayerMessage}${challengerMessage}
+  return [
+    field(
+      "🎉 First time submission",
+      ["firstTimeSubmissionPlayers"],
+      parts.firstTimeSubmissionPlayers?.join(", "),
+      true,
+    ),
+    field(
+      "🏆 Challenger run",
+      ["isChallengerRun", "place"],
+      parts.isChallengerRun && parts.place !== undefined && `May be ${getPlaceText(parts.place)}!`,
+      true,
+    ),
+    field(
+      "Place",
+      ["place", "isChallengerRun"],
+      !parts.isChallengerRun && parts.place !== undefined && formatPlace(parts.place),
+      true,
+    ),
+    field("Video proof", ["videoProof"], parts.videoProof),
+    field("Status", ["status"], parts.status, true),
+  ].filter((x): x is APIEmbedField => !!x)
+}
+function getPlaceText(place: number | null) {
+  return place === null
+    ? "Unknown"
+    : place === 1
+      ? "🥇 A New World Record"
+      : place === 2
+        ? "🥈"
+        : place === 3
+          ? "🥉"
+          : formatPlace(place)
+}
 
-${VideoPrefix}(loading...)
-${StatusPrefix}(loading...)
-${SubmittedPrefix}<t:${dateSeconds}:f> (<t:${dateSeconds}:R>)
-`
+function isEmptyObject(obj: Record<string, unknown>) {
+  // noinspection LoopStatementThatDoesntLoopJS
+  for (const _ in obj) {
+    return false
+  }
+  return true
 }
 function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
   scheduleJob("processSrcSubmissions", config.cronSchedule, () => logErrors(run()))
@@ -209,81 +298,71 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     let message: Message | undefined
     const isNewMessage = !dbRun.messageChannelId || !dbRun.messageId
     if (isNewMessage) {
-      message = await createRunMessage(srcRun, dbRun, await players(), notifyChannel)
+      message = await createRunMessage(srcRun, await players(), notifyChannel)
+
+      dbRun.messageId = message.id
+      dbRun.messageChannelId = message.channelId
+      dbRun.messageVersion = MESSAGE_VERSION
     }
-    const shouldRefreshMessageContent =
-      !isNewMessage && (dbRun.messageVersion !== MESSAGE_VERSION || status == SrcRunStatus.New)
-    const shouldUpdateAllComponents = shouldRefreshMessageContent || isNewMessage
 
-    async function updateMessage() {
-      let content: string | undefined
-      let messageFetched = false
-      async function editContent(fn: (content: string) => Promise<string>) {
-        if (!messageFetched) {
-          message ??= await fetchMessage(dbRun)
-          messageFetched = true
-        }
-        if (!message) return
-        if (!content) {
-          if (shouldRefreshMessageContent) {
-            content = await getMessageContent(srcRun, await players(), config)
-          } else {
-            content = message.content
-          }
-        }
-        content = await fn(content)
-        logger.debug("New content:", content)
+    launchFn(async () => {
+      const isOutdatedMessage = !isNewMessage && dbRun.messageVersion !== MESSAGE_VERSION
+      const toEditParts: Partial<RunMessageParts> = isOutdatedMessage
+        ? await getInitialMessage(srcRun, await players())
+        : {}
+
+      const shouldUpdateAllComponents = isNewMessage || isOutdatedMessage
+
+      if (shouldUpdateAllComponents || dbRun.lastStatus !== status) {
+        toEditParts.status = await getStatusText(srcRun)
+        toEditParts.color = getRunColor(srcRun)
+      }
+      if (shouldUpdateAllComponents || srcRun.status.status === "new") {
+        toEditParts.videoProof = await getVideoProofText(srcRun)
       }
 
-      const shouldUpdateStatus = shouldUpdateAllComponents || dbRun.lastStatus !== status
-      if (shouldUpdateStatus) {
-        logger.info("Updating status", srcRun.id)
-        await editContent(updateRunStatusInMessage.bind(undefined, srcRun))
-        dbRun.lastStatus = status
-      }
-      const shouldUpdateVideo = shouldUpdateAllComponents || srcRun.status.status === "new"
-      if (shouldUpdateVideo) {
-        logger.info("Updating video", srcRun.id)
-        await editContent(updateVideoProofInMessage.bind(undefined, srcRun))
-      }
-      if (
-        message &&
-        content &&
-        (message.content !== content || shouldUpdateAllComponents || shouldRefreshMessageContent)
-      ) {
+      if (!isEmptyObject(toEditParts)) {
         logger.info("Editing message", srcRun.id)
-        await message.edit({ content, flags: MessageFlags.SuppressEmbeds })
+        message ??= await fetchMessage(dbRun)
+        if (message) {
+          await editRunMessage(message, toEditParts)
+        }
         dbRun.messageVersion = MESSAGE_VERSION
       } else {
         logger.info("No changes for run", srcRun.id)
       }
+
       launch(dbRun.save())
-      if (shouldUpdateStatus && srcRun.status.status === "verified") {
+
+      if ((shouldUpdateAllComponents || dbRun.lastStatus !== status) && srcRun.status.status === "verified") {
         await recordPlayersHaveVerifiedRun(srcRun, await players(), message)
       }
-    }
-
-    launch(updateMessage())
+    })
   }
 
-  async function createRunMessage(
-    run: RunWithEmbeds,
-    dbRun: SrcRun,
-    players: PlayerWithDbPlayer[],
-    notifyChannel: SendableChannels,
-  ) {
+  function createEmbed(parts: Partial<RunMessageParts>, editFrom?: Embed) {
+    const builder = editFrom ? EmbedBuilder.from(editFrom) : new EmbedBuilder()
+    if (parts.title) builder.setTitle(parts.title)
+    if (parts.description) builder.setDescription(parts.description)
+    if (parts.thumbnail) builder.setThumbnail(parts.thumbnail)
+    if (parts.timestamp) builder.setTimestamp(parts.timestamp)
+    if (parts.color) builder.setColor(parts.color)
+    builder.setFields(getEmbedFields(parts, editFrom?.fields))
+    return builder
+  }
+
+  async function createRunMessage(run: RunWithEmbeds, players: PlayerWithDbPlayer[], notifyChannel: SendableChannels) {
     logger.info("Creating message for run", run.id)
-    const messageContent = await getMessageContent(run, players, config)
-    const message = await notifyChannel.send({
-      content: messageContent,
-      flags: MessageFlags.SuppressEmbeds,
+
+    const parts = await getInitialMessage(run, players)
+    return await notifyChannel.send({ embeds: [createEmbed(parts)] })
+  }
+
+  async function editRunMessage(message: Message, parts: Partial<RunMessageParts>) {
+    await message.edit({
+      content: null,
+      embeds: [createEmbed(parts, message.embeds[0])],
     })
-
-    dbRun.messageId = message.id
-    dbRun.messageChannelId = message.channelId
-    dbRun.messageVersion = MESSAGE_VERSION
-
-    return message
   }
 
   async function recordPlayersHaveVerifiedRun(
@@ -358,7 +437,7 @@ interface RunWithMaybeDbRun {
  */
 async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]> {
   const allDbRuns = await SrcRun.findAll({ order: [["submissionTime", "desc"]] })
-  const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now() - 60 * 60 * 24 * 1000)
+  const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now() - 60 * 60 * 24 * 1000 * 7)
   const earliestSavedSubmission = allDbRuns[allDbRuns.length - 1]?.submissionTime ?? latestSavedSubmission
 
   const newStatusRuns = gameIds.map((gameId) =>
@@ -472,22 +551,36 @@ async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {
   return message
 }
 
-async function getStatusText(run: RunWithEmbeds) {
+function getRunStatus(run: RunWithEmbeds): RunStatus {
   const examinerId = "examiner" in run.status ? run.status.examiner : undefined
   const isSelfVerified =
     run.status.status == "verified" && run.players.data.some((x: Player) => x.rel === "user" && x.id === examinerId)
 
-  const status = isSelfVerified ? "selfVerified" : run.status.status
+  if (isSelfVerified) return RunStatus.SelfVerified
+  switch (run.status.status) {
+    case "new":
+      return RunStatus.New
+    case "verified":
+      return RunStatus.Verified
+    case "rejected":
+      return RunStatus.Rejected
+    default:
+      return RunStatus.New
+  }
+}
+
+function getRunColor(srcRun: RunWithEmbeds) {
+  return StatusColor[getRunStatus(srcRun)]
+}
+
+async function getStatusText(run: RunWithEmbeds) {
+  const status = getRunStatus(run)
   const statusMessage = StatusMessage[status] ?? "Unknown"
   if (statusMessage.includes("%p")) {
     const examinerName = "examiner" in run.status ? (await getUserCached(run.status.examiner)).names.international : ""
     return statusMessage.replace("%p", examinerName)
   }
   return statusMessage
-}
-
-async function updateRunStatusInMessage(run: RunWithEmbeds, content: string): Promise<string> {
-  return editLine(content, StatusPrefix, await getStatusText(run))
 }
 
 async function getVideoProofText(run: RunWithEmbeds) {
@@ -500,10 +593,6 @@ async function getVideoProofText(run: RunWithEmbeds) {
   } else {
     assertNever(video)
   }
-}
-
-async function updateVideoProofInMessage(run: RunWithEmbeds, content: string): Promise<string> {
-  return editLine(content, VideoPrefix, await getVideoProofText(run), SubmittedPrefix)
 }
 
 async function getOrAddPlayers(run: RunWithEmbeds): Promise<PlayerWithDbPlayer[]> {
@@ -537,6 +626,10 @@ async function logErrors<T>(promise: Promise<T>): Promise<T | undefined> {
 
 function launch<T>(promise: Promise<T>) {
   void logErrors(promise)
+}
+
+function launchFn<T>(fn: () => Promise<T>) {
+  launch(fn())
 }
 
 interface GameData {

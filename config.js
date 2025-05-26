@@ -77,16 +77,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
   },
   announceSrcSubmissions: {
     channelId: Channels.RunAdministration,
-    games: [
-      {
-        id: "9d35xw1l",
-        nickname: "⚙️ Factorio",
-      },
-      {
-        id: "ldewr7ed",
-        nickname: "🚀 Space Age",
-      },
-    ],
+    games: [{ id: "9d35xw1l" }, { id: "ldewr7ed" }],
     cronSchedule: "*/15 * * * *",
     announceNewPlayersMessage: {
       message: `🎉 **%p** had their first verified run! Consider giving them the <@&${Roles.Speedrunner}> role.\n<@&${Roles.SrcAdmin}>`,
