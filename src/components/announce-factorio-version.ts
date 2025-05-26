@@ -1,4 +1,4 @@
-import { Client, Events, SendableChannels } from "discord.js"
+import { Client, Events, MessageCreateOptions, SendableChannels } from "discord.js"
 import { scheduleJob } from "node-schedule"
 import { AnnounceFactorioVersionConfig } from "../config-file.js"
 import { createLogger } from "../logger.js"
@@ -22,7 +22,7 @@ function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
     return channel
   }
 
-  async function send(message: string) {
+  async function send(message: string | MessageCreateOptions) {
     const channel = await getChannel()
     return await channel.send(message)
   }
@@ -40,9 +40,19 @@ function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
     let changed = false
     for (const key of ["stable", "experimental"] as const) {
       if (current[key] !== lastKnownObj[key]) {
-        const message = `New ${key} version: ${lastKnownObj[key] ?? "unknown"} ⇨ ${current[key]}`
-        logger.info(message)
-        await send("## 🇻 " + message)
+        const versionTypeStr = key === "stable" ? "Stable" : "Experimental"
+        const versionChangeMsg = `${lastKnownObj[key] ?? "unknown"} ⇨ ${current[key]}`
+        const embedColor = key === "stable" ? 0xffa500 : 0x00ff00 // orange for stable, green for experimental
+        logger.info(`New ${versionTypeStr} version: ${versionChangeMsg}`)
+        await send({
+          embeds: [
+            {
+              title: `New ${key} Factorio Version`,
+              description: versionChangeMsg,
+              color: embedColor,
+            },
+          ],
+        })
         changed = true
       }
       lastKnownEntry[key] = current[key]
