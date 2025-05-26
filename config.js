@@ -2,6 +2,7 @@ const GuildID = "260103071017730048"
 const Roles = {
   SrcAdmin: "1201289542200733766",
   Speedrunner: "316699796276641792",
+  Discusser: "1374825858560430190",
 }
 const Channels = {
   SrcAnnouncements: "1313654063526580255",
@@ -101,6 +102,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
   ],
   messageReport: {
     reportNotifyRoles: [Roles.SrcAdmin],
+    requiredRoles: [Roles.Discusser],
     logChannelId: Channels.TranscriptsAndLogs,
     reportThreshold: 3,
   },
