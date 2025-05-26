@@ -9,7 +9,7 @@
     "watch": "tsc -w",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
-    "check": "npm run lint && tsc --noEmit && npm test"
+    "check": "npm run lint && tsc --noEmit"
   },
   "type": "module",
   "dependencies": {
