@@ -70,7 +70,7 @@ async function logReportInLogChannel(
   }
 
   await logChannel.send({
-    content: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by ${reporter.displayName}: ${reason || "No reason provided"}`,
+    content: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by <@${reporter.id}>: ${reason || "No reason provided"}`,
     allowedMentions: { parse: [] },
   })
   if (totalMessageReports == reportConfig.reportThreshold) {
@@ -83,8 +83,8 @@ async function logReportInLogChannel(
       content: (reportConfig.reportNotifyRoles ?? []).map((roleId) => `<@&${roleId}>`).join(" "),
       embeds: [
         {
-          title: `Message report threshold reached!`,
-          description: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) received ${totalMessageReports} reports!`,
+          title: `Message report ${totalMessageReports} times!`,
+          description: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported:`,
           fields: [
             {
               name: "Reports",
