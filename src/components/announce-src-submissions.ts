@@ -238,7 +238,7 @@ function getEmbedFields(parts: Partial<RunMessageParts>, fromExisting?: APIEmbed
     field(
       "Place",
       ["place", "isChallengerRun"],
-      !parts.isChallengerRun && parts.place !== undefined && formatPlace(parts.place),
+      !parts.isChallengerRun && parts.place !== undefined && getPlaceText(parts.place),
       true,
     ),
     field("Video proof", ["videoProof"], parts.videoProof),
@@ -306,7 +306,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     }
 
     launchFn(async () => {
-      const isOutdatedMessage = !isNewMessage && dbRun.messageVersion !== MESSAGE_VERSION
+      const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION
       const toEditParts: Partial<RunMessageParts> = isOutdatedMessage
         ? await getInitialMessage(srcRun, await players())
         : {}
@@ -314,10 +314,13 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       const shouldUpdateAllComponents = isNewMessage || isOutdatedMessage
 
       if (shouldUpdateAllComponents || dbRun.lastStatus !== status) {
+        logger.info("Updating run status", srcRun.id, "to", status)
         toEditParts.status = await getStatusText(srcRun)
         toEditParts.color = getRunColor(srcRun)
+        dbRun.lastStatus = status
       }
       if (shouldUpdateAllComponents || srcRun.status.status === "new") {
+        logger.info("Updating video proof for run", srcRun.id)
         toEditParts.videoProof = await getVideoProofText(srcRun)
       }
 

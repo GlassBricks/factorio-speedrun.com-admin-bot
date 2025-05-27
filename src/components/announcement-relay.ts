@@ -41,25 +41,23 @@ class AnnouncementRelay {
     const existingDbMessage = await AnnounceMessage.findOne({ where: { srcMessageId: message.id } })
     if (existingDbMessage) {
       await this.editAnnounceMessage(message, existingDbMessage)
-    } else {
-      message = await message.fetch()
-      if (
-        message.channelId === this.config.fromChannelId &&
-        (message.reactions.resolve(this.config.confirmReact)?.count ?? 0) > 0
-      ) {
-        await this.createAnnounceMessage(message, message.author)
-      } else {
-        this.logger.info("Ignoring message edit ineligible for announcement:", message.id)
-      }
+      return
+    }
+
+    message = await message.fetch()
+    if (
+      message.channelId === this.config.fromChannelId &&
+      (message.reactions.resolve(this.config.confirmReact)?.count ?? 0) > 0
+    ) {
+      await this.createAnnounceMessage(message, message.author)
     }
   }
 
   async onMessageDelete(message: OmitPartialGroupDMChannel<Message | PartialMessage>): Promise<void> {
     const existingDbMessage = await AnnounceMessage.findOne({ where: { srcMessageId: message.id } })
-    if (!existingDbMessage) {
-      return this.logger.info("Ignoring delete for message not in db:", message.id)
+    if (existingDbMessage) {
+      await this.deleteAnnouncement(message, existingDbMessage)
     }
-    await this.deleteAnnouncement(message, existingDbMessage)
   }
 
   private async deleteAnnouncement(
