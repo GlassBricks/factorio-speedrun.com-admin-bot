@@ -34,9 +34,10 @@ export async function report(
       })
     } else {
       logger.error("Unexpected error in report command:", error)
-      await interaction.reply(
-        "An unexpected error occurred while processing your report! Please report this to the admins/dev. ",
-      )
+      await interaction.reply({
+        content: "An unexpected error occurred while processing your report! Please report this to the admins/dev.",
+        ephemeral: true,
+      })
     }
   }
 }
