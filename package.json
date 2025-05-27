@@ -14,7 +14,8 @@
   "type": "module",
   "dependencies": {
     "@sapphire/decorators": "^6.1.1",
-    "@sapphire/framework": "^5.3.1",
+    "@sapphire/framework": "^5.3.5",
+    "@sapphire/plugin-logger": "^4.0.2",
     "discord.js": "^14.16.3",
     "dotenv": "^16.4.7",
     "iso8601-duration": "^2.1.2",

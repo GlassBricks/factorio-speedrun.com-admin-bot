@@ -270,6 +270,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     .invoke()
 
   async function run() {
+    logger.info("Starting announce SRC submissions")
     await maybeInitSrcPlayers()
     clearCaches()
 
@@ -279,7 +280,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       return
     }
 
-    logger.info("Finding runs")
+    logger.debug("Finding runs")
     const gameIds = config.games.map((x) => x.id)
     const allRuns = await createDbRunsIfNeeded(await getRunsToProcess(gameIds))
 
@@ -290,7 +291,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
   }
 
   async function processRun({ srcRun, dbRun }: RunWithDbRun, notifyChannel: SendableChannels) {
-    logger.info("Processing run:", srcRun.id)
+    logger.debug("Processing run:", srcRun.id)
 
     const status = statusStrToStatus(srcRun.status.status)
     const players = lazy(() => getOrAddPlayers(srcRun))
@@ -314,25 +315,25 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       const shouldUpdateAllComponents = isNewMessage || isOutdatedMessage
 
       if (shouldUpdateAllComponents || dbRun.lastStatus !== status) {
-        logger.info("Updating run status", srcRun.id, "to", status)
+        logger.trace("Updating run status", srcRun.id, "to", status)
         toEditParts.status = await getStatusText(srcRun)
         toEditParts.color = getRunColor(srcRun)
         dbRun.lastStatus = status
       }
       if (shouldUpdateAllComponents || srcRun.status.status === "new") {
-        logger.info("Updating video proof for run", srcRun.id)
+        logger.trace("Updating video proof for run", srcRun.id)
         toEditParts.videoProof = await getVideoProofText(srcRun)
       }
 
       if (!isEmptyObject(toEditParts)) {
-        logger.info("Editing message", srcRun.id)
+        logger.debug("Editing message", srcRun.id)
         message ??= await fetchMessage(dbRun)
         if (message) {
           await editRunMessage(message, toEditParts)
         }
         dbRun.messageVersion = MESSAGE_VERSION
       } else {
-        logger.info("No changes for run", srcRun.id)
+        logger.debug("No changes for run", srcRun.id)
       }
 
       launch(dbRun.save())
@@ -355,7 +356,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
   }
 
   async function createRunMessage(run: RunWithEmbeds, players: PlayerWithDbPlayer[], notifyChannel: SendableChannels) {
-    logger.info("Creating message for run", run.id)
+    logger.info("Creating run message", run.id)
 
     const parts = await getInitialMessage(run, players)
     return await notifyChannel.send({ embeds: [createEmbed(parts)] })

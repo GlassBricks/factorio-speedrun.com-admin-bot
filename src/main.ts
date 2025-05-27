@@ -1,6 +1,7 @@
 import { Events, GatewayIntentBits, Partials } from "discord.js"
 import { config as dotEnvConfig } from "dotenv"
 import { LogLevel, SapphireClient } from "@sapphire/framework"
+import "@sapphire/plugin-logger/register"
 import { sequelize } from "./db/index.js"
 
 import config from "./config-file.js"

@@ -1,4 +1,4 @@
 import { execSync } from "child_process"
 
 execSync("npm run build", { stdio: "inherit" })
-await import("./out/main.js")
+execSync("node ./out/main.js 2>&1 | tee ./out/log.txt", { stdio: "inherit" })
