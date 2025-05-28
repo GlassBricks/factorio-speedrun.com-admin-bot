@@ -74,25 +74,19 @@ export interface AutoReactConfig {
   reactions: string[]
 }
 
-export interface ReportsConfig {
-  requiredRoles?: Snowflake[]
-  forbiddenRoles?: Snowflake[]
-  reportableChannels?: Snowflake[]
-  reportThreshold: number
-  banNotifyRoles?: Snowflake[]
-}
-
-export interface RulesAcceptConfig {
-  requiredChannel?: Snowflake
-  requiredRoles?: Snowflake[]
-  grantRoleId: Snowflake
-}
-
 export interface DiscussionModerationConfig {
   logChannelId: Snowflake
-  reports?: ReportsConfig
-  accept?: RulesAcceptConfig
+
+  acceptRequiredRoles: Snowflake[]
+  acceptChannel?: Snowflake
+  grantRoleId: Snowflake
+
+  reportRequiredRoles?: Snowflake[]
+  reportableChannels: Snowflake[]
+  reportsTempBanThreshold: number
+
   tempBanDays: number
+  tempBanNotify: Snowflake[]
 }
 
 const dev = process.env.NODE_ENV === "development"

@@ -57,16 +57,17 @@ const config = {
   ],
   discussionModeration: {
     logChannelId: Channels.NotGeneral,
-    reports: {
-      reportableChannels: [Channels.Discuss],
-      requiredRoles: [Roles.Discusser, Roles.Notif],
-      banNotifyRoles: [Roles.Notif],
-      reportThreshold: 1,
-    },
-    accept: {
-      grantRoleId: Roles.Discusser,
-    },
+
+    acceptRequiredRoles: [Roles.Notif],
+    acceptChannel: Channels.Discuss,
+    grantRoleId: Roles.Discusser,
+
+    reportRequiredRoles: [Roles.Discusser, Roles.Notif],
+    reportableChannels: [Channels.Discuss],
+    reportsTempBanThreshold: 1,
+
     tempBanDays: 1 / 24 / 60, // 1 minute
+    tempBanNotify: [Roles.Notif],
   },
 }
 export default config

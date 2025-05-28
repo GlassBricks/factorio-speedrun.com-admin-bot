@@ -5,6 +5,7 @@ import {
   Message,
   MessageFlags,
   SendableChannels,
+  Snowflake,
   TextBasedChannel,
 } from "discord.js"
 import config from "../config-file.js"
@@ -13,9 +14,6 @@ import { DiscussionTempBan, MessageReport, sequelize } from "../db/index.js"
 import { handleInteractionErrors, maybeUserError, UserError } from "./error-handling.js"
 
 const moderationConfig = config.discussionModeration
-const reportConfig = moderationConfig?.reports
-const acceptConfig = moderationConfig?.accept
-
 const logger = createLogger("[Discussion]")
 
 function getLogChannel(guild: Guild): (TextBasedChannel & SendableChannels) | undefined {
@@ -89,36 +87,24 @@ async function createDbReport(reporter: GuildMember, reportedMessage: Message, r
   }
 }
 
+const dev = process.env.NODE_ENV === "development"
 async function checkCanReport(reporter: GuildMember, reportedMessage: Message): Promise<string | undefined> {
-  if (!reportConfig) {
+  if (!moderationConfig) {
     return "Reporting is currently disabled."
   }
-  // if (reportedMessage.author.id === reporter.id) {
-  //   return "You cannot report your own messages!"
-  // }
+  if (moderationConfig.reportableChannels && !moderationConfig.reportableChannels.includes(reportedMessage.channelId)) {
+    return "You cannot report messages in this channel."
+  }
+  if (!dev && reportedMessage.author.id === reporter.id) {
+    return "You cannot report your own messages."
+  }
   if (reportedMessage.author.bot) {
     return "You cannot report bot messages."
   }
-  if (reportConfig.reportableChannels) {
-    if (!reportConfig.reportableChannels.includes(reportedMessage.channelId)) {
-      return "You cannot report messages in this channel."
-    }
-  }
-  if (reportConfig.requiredRoles) {
-    const hasRequiredRole = reportConfig.requiredRoles.some((roleId) => reporter.roles.cache.has(roleId))
-    if (!hasRequiredRole) {
-      return (
-        "You do not have one of the required roles to report messages: " +
-        reportConfig.requiredRoles.map((roleId) => `<@&${roleId}>`).join(", ")
-      )
-    }
-  }
-  if (reportConfig.forbiddenRoles) {
-    const hasForbiddenRole = reportConfig.forbiddenRoles.some((roleId) => reporter.roles.cache.has(roleId))
-    if (hasForbiddenRole) {
-      return "You have been banned from reporting messages"
-    }
-  }
+
+  const m = checkHasRequiredRoles(reporter, moderationConfig.reportRequiredRoles)
+  if (m) return m
+
   const existingReport = await MessageReport.findOne({
     where: {
       messageId: reportedMessage.id,
@@ -139,7 +125,7 @@ export async function acceptCommand(interaction: CommandInteraction, member: Gui
     () => doAccept(interaction, member),
     () =>
       interaction.reply({
-        content: `You have been granted the <@&${acceptConfig!.grantRoleId}> role!`,
+        content: `You have been granted the <@&${moderationConfig!.grantRoleId}> role!`,
         flags: MessageFlags.Ephemeral,
       }),
   )
@@ -152,7 +138,7 @@ export async function unacceptCommand(interaction: CommandInteraction, member: G
     () => doUnaccept(member),
     () =>
       interaction.reply({
-        content: `You have been removed from the <@&${acceptConfig!.grantRoleId}> role!`,
+        content: `You have been removed from the <@&${moderationConfig!.grantRoleId}> role!`,
         flags: MessageFlags.Ephemeral,
       }),
   )
@@ -160,19 +146,22 @@ export async function unacceptCommand(interaction: CommandInteraction, member: G
 
 async function doAccept(interaction: CommandInteraction, member: GuildMember): Promise<void> {
   maybeUserError(await checkCanAccept(interaction, member))
-  await member.roles.add(acceptConfig!.grantRoleId)
+  await member.roles.add(moderationConfig!.grantRoleId)
   logAccept(member)
 }
 
 function logAccept(member: GuildMember) {
-  logBoth(member.guild, `<@${member.id}> accepted the rules and was granted the <@&${acceptConfig!.grantRoleId}> role.`)
+  logBoth(
+    member.guild,
+    `<@${member.id}> accepted the rules and was granted the <@&${moderationConfig!.grantRoleId}> role.`,
+  )
 }
 
 async function checkCanAccept(interaction: CommandInteraction, member: GuildMember): Promise<string | undefined> {
-  if (!acceptConfig) return "This feature is currently disabled."
+  if (!moderationConfig) return "This feature is currently disabled."
 
-  if (member.roles.cache.has(acceptConfig.grantRoleId)) {
-    return `You already have the <@&${acceptConfig.grantRoleId}> role!`
+  if (member.roles.cache.has(moderationConfig.grantRoleId)) {
+    return `You already have the <@&${moderationConfig.grantRoleId}> role!`
   }
 
   const ban = await getCurrentTempBan(member)
@@ -180,38 +169,28 @@ async function checkCanAccept(interaction: CommandInteraction, member: GuildMemb
     throw new UserError(getBannedMessage(ban.expiresAt))
   }
 
-  if (acceptConfig.requiredChannel && interaction.channelId !== acceptConfig.requiredChannel) {
-    return `You must run this command in <#${acceptConfig.requiredChannel}>.`
+  if (moderationConfig.acceptChannel && interaction.channelId !== moderationConfig.acceptChannel) {
+    return `You must run this command in <#${moderationConfig.acceptChannel}>.`
   }
 
-  if (acceptConfig.requiredRoles) {
-    const hasRequiredRole = acceptConfig.requiredRoles.some((roleId) => member.roles.cache.has(roleId))
-    if (!hasRequiredRole) {
-      return (
-        "You do not have one of the required roles: " +
-        acceptConfig.requiredRoles.map((roleId) => `<@&${roleId}>`).join(", ")
-      )
-    }
-  }
-
-  return
+  return checkHasRequiredRoles(member, moderationConfig.acceptRequiredRoles)
 }
 
 async function doUnaccept(member: GuildMember): Promise<void> {
   maybeUserError(checkCanUnaccept(member))
-  await member.roles.remove(acceptConfig!.grantRoleId)
+  await member.roles.remove(moderationConfig!.grantRoleId)
   logUnaccept(member)
 }
 
 function logUnaccept(member: GuildMember) {
-  logBoth(member.guild, `<@${member.id}> was removed from the <@&${acceptConfig!.grantRoleId}> role.`)
+  logBoth(member.guild, `<@${member.id}> was removed from the <@&${moderationConfig!.grantRoleId}> role.`)
 }
 
 function checkCanUnaccept(member: GuildMember): string | undefined {
-  if (!acceptConfig) return "This feature is currently disabled."
+  if (!moderationConfig) return "This feature is currently disabled."
 
-  if (!member.roles.cache.has(acceptConfig.grantRoleId)) {
-    return `You already don't have the <@&${acceptConfig.grantRoleId}> role!`
+  if (!member.roles.cache.has(moderationConfig.grantRoleId)) {
+    return `You already don't have the <@&${moderationConfig.grantRoleId}> role!`
   }
 
   return
@@ -241,7 +220,7 @@ function handleReportNonInteractive(
 ) {
   const guild = reporter.guild
   logReport(reportedMessage, reporter, reportReason)
-  if (totalMessageReports == reportConfig!.reportThreshold) {
+  if (totalMessageReports == moderationConfig!.reportsTempBanThreshold) {
     logErrorsToChannel(guild, createTempBan(reportedMessage))
     logErrorsToChannel(guild, logTempBan(reportedMessage))
   }
@@ -251,12 +230,12 @@ async function createTempBan(reportedMessage: Message) {
   const author = reportedMessage.member
   if (!author) return
   const guild = reportedMessage.guild!
-  const discusserRoleId = acceptConfig!.grantRoleId
+  const discusserRoleId = moderationConfig!.grantRoleId
   const tempBanDays = moderationConfig!.tempBanDays
   const now = new Date()
   const expiresAt = new Date(now.getTime() + tempBanDays * 24 * 60 * 60 * 1000)
   let ban = await getCurrentTempBan(author)
-  const banReason = `Message ${reportedMessage.id} reported ${reportConfig!.reportThreshold} times`
+  const banReason = `Message ${reportedMessage.id} reported ${moderationConfig!.reportsTempBanThreshold} times`
   if (ban && ban.expiresAt > now) {
     // Renew ban
     ban.expiresAt = ban.expiresAt > expiresAt ? ban.expiresAt : expiresAt
@@ -281,13 +260,13 @@ async function createTempBan(reportedMessage: Message) {
 }
 
 async function logTempBan(reportedMessage: Message) {
-  const totalMessageReports = reportConfig!.reportThreshold
+  const totalMessageReports = moderationConfig!.reportsTempBanThreshold
   const reporters = await MessageReport.findAll({ where: { messageId: reportedMessage.id } })
   logger.info(
     `Temp banning <@${reportedMessage.author.id}> for ${totalMessageReports} message reports on ${reportedMessage.url}.`,
   )
   await getLogChannel(reportedMessage.guild!)?.send({
-    content: (reportConfig!.banNotifyRoles ?? []).map((roleId) => `<@&${roleId}>`).join(" "),
+    content: (moderationConfig!.tempBanNotify ?? []).map((roleId) => `<@&${roleId}>`).join(" "),
     embeds: [
       {
         title: `Temp ban!`,
@@ -303,4 +282,16 @@ async function logTempBan(reportedMessage: Message) {
       },
     ],
   })
+}
+
+function checkHasRequiredRoles(member: GuildMember, requiredRoles: Snowflake[] | undefined): string | undefined {
+  if (!requiredRoles) return undefined
+  const hasRoles = requiredRoles.every((roleId) => member.roles.cache.has(roleId))
+  if (!hasRoles) {
+    return (
+      "You do not have the required roles to use this command: " +
+      requiredRoles.map((roleId) => `<@&${roleId}>`).join(", ")
+    )
+  }
+  return undefined
 }

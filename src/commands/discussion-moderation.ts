@@ -19,7 +19,7 @@ export class ReportCommand extends Command {
     super(ctx, {
       name: "report",
       description: "Report a message",
-      enabled: !!config.discussionModeration?.reports,
+      enabled: !!config.discussionModeration,
       ...options,
     })
   }
@@ -97,7 +97,7 @@ export class AcceptCommand extends Command {
     super(ctx, {
       name: "accept",
       description: "Accept the rules and get the discusser role",
-      enabled: !!config.discussionModeration?.accept,
+      enabled: !!config.discussionModeration,
       ...options,
     })
   }
@@ -125,7 +125,7 @@ export class UnacceptCommand extends Command {
     super(ctx, {
       name: "unaccept",
       description: "Remove the discusser role",
-      enabled: !!config.discussionModeration?.accept,
+      enabled: !!config.discussionModeration,
       ...options,
     })
   }
