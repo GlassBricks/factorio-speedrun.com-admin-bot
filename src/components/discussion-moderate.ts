@@ -75,6 +75,8 @@ function logReport(reportedMessage: Message, reporter: GuildMember, reason: stri
 async function createDbReport(reporter: GuildMember, reportedMessage: Message, reason: string | undefined) {
   const report = await MessageReport.create({
     messageId: reportedMessage.id,
+    messageUrl: reportedMessage.url,
+    authorId: reportedMessage.author.id,
     reporterId: reporter.id,
     reason: reason,
   })

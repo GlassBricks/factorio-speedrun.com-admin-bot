@@ -12,11 +12,11 @@ export async function handleInteractionErrors<T>(
   interaction: CommandInteraction,
   logger: ILogger,
   fn: () => Promise<T> | T,
-  onSuccess: (result: T) => Promise<unknown> | void,
+  onSuccess?: (result: T) => Promise<unknown> | void,
 ): Promise<void> {
   try {
     const result = await fn()
-    await onSuccess(result)
+    await onSuccess?.(result)
   } catch (error) {
     if (error instanceof UserError) {
       await interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral })

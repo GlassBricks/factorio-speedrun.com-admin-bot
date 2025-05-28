@@ -16,6 +16,7 @@
     "@sapphire/decorators": "^6.1.1",
     "@sapphire/framework": "^5.3.5",
     "@sapphire/plugin-logger": "^4.0.2",
+    "@sapphire/plugin-subcommands": "^7.0.1",
     "discord.js": "^14.19.3",
     "dotenv": "^16.5.0",
     "iso8601-duration": "^2.1.2",
