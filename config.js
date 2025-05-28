@@ -11,6 +11,8 @@ const Channels = {
   SrcDiscussionContact: "1313675268392489053",
   FeedbackRelay: "1322336566705655838",
   RunAdministration: "1201292109332885584",
+  DiscussionAccept: "1374810532581871737",
+  Discussion: "1374810532581871737",
 }
 
 const moreInfoDescription =
@@ -102,11 +104,16 @@ If %n %r reacts are received %e, ` + reelectDescription,
   ],
   discussionModeration: {
     logChannelId: Channels.TranscriptsAndLogs,
-    reports: {
-      banNotifyRoles: [Roles.SrcAdmin],
-      requiredRoles: [Roles.Discusser],
-      reportThreshold: 3,
-    },
+    acceptRequiredRoles: [Roles.Speedrunner],
+    // acceptChannel: Channels.DiscussionAccept,
+    grantRoleId: Roles.Discusser,
+
+    reportRequiredRoles: [Roles.Discusser],
+    reportableChannels: [Channels.Discussion],
+    reportsTempBanThreshold: 3,
+
+    tempBanDays: 3,
+    // tempBanNotify: [Roles.SrcAdmin],
   },
 }
 export default config

@@ -86,7 +86,7 @@ export interface DiscussionModerationConfig {
   reportsTempBanThreshold: number
 
   tempBanDays: number
-  tempBanNotify: Snowflake[]
+  tempBanNotify?: Snowflake[]
 }
 
 const dev = process.env.NODE_ENV === "development"
