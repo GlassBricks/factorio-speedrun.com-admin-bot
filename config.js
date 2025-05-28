@@ -103,7 +103,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
   discussionModeration: {
     logChannelId: Channels.TranscriptsAndLogs,
     reports: {
-      reportNotifyRoles: [Roles.SrcAdmin],
+      banNotifyRoles: [Roles.SrcAdmin],
       requiredRoles: [Roles.Discusser],
       reportThreshold: 3,
     },

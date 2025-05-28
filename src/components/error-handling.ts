@@ -24,17 +24,11 @@ export async function handleInteractionErrors<T>(
     }
     logger.error("Unexpected error in command:", error)
     await interaction.reply({
-      content: "An unexpected error occurred while processing your request! Please report this to the admins/dev.",
+      content: "An unexpected error occurred! Please report this to the admins/dev.",
       flags: MessageFlags.Ephemeral,
     })
     return
   }
-}
-
-export function logErrors(logger: ILogger, promise: Promise<unknown>) {
-  promise.catch((error) => {
-    logger.error("Unhandled error in promise:", error)
-  })
 }
 
 export function maybeUserError(message: string | undefined): void {

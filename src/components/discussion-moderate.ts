@@ -9,8 +9,9 @@ import {
 } from "discord.js"
 import config from "../config-file.js"
 import { createLogger } from "../logger.js"
-import { MessageReport, sequelize } from "../db/index.js"
-import { handleInteractionErrors, logErrors, maybeUserError } from "./error-handling.js"
+import { DiscussionTempBan, MessageReport, sequelize } from "../db/index.js"
+import { handleInteractionErrors, maybeUserError, UserError } from "./error-handling.js"
+import { Op } from "sequelize"
 
 const moderationConfig = config.discussionModeration
 const reportConfig = moderationConfig?.reports
@@ -26,6 +27,20 @@ function getLogChannel(guild: Guild): (TextBasedChannel & SendableChannels) | un
     return undefined
   }
   return channel
+}
+
+function logErrorsToChannel(guild: Guild, promise: Promise<void>): void {
+  promise.catch((err) => {
+    logger.error("Unhandled error:", err)
+    void getLogChannel(guild)?.send("Unhandled error in report moderation! Please check the logs.")
+  })
+}
+
+function logBoth(guild: Guild, message: string) {
+  logger.info(message)
+  void getLogChannel(guild)
+    ?.send({ content: message, allowedMentions: { parse: [] } })
+    .catch((err) => logger.error("Failed to send log message:", err))
 }
 
 export async function report(
@@ -50,48 +65,14 @@ async function doReport(reporter: GuildMember, reportedMessage: Message, reason:
   maybeUserError(await checkCanReport(reporter, reportedMessage))
 
   const { totalMessageReports } = await sequelize.transaction(() => createDbReport(reporter, reportedMessage, reason))
-  logger.info(
-    `Message ${reportedMessage.id} reported by <@${reporter.id}> with reason: ${reason || "No reason provided"}. Total reports: ${totalMessageReports}`,
+  handleReportNonInteractive(reporter, reportedMessage, reason, totalMessageReports)
+}
+
+function logReport(reportedMessage: Message, reporter: GuildMember, reason: string | undefined) {
+  logBoth(
+    reportedMessage.guild!,
+    `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by <@${reporter.id}>: ${reason || "No reason provided"}`,
   )
-  logErrors(logger, discordLogReport(reportedMessage, reporter, reason))
-  logErrors(logger, checkReportThresholdReached(totalMessageReports, reportedMessage))
-}
-
-async function discordLogReport(
-  reportedMessage: Message,
-  reporter: GuildMember,
-  reason: string | undefined,
-): Promise<void> {
-  await getLogChannel(reportedMessage.guild!)?.send({
-    content: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by <@${reporter.id}>: ${reason || "No reason provided"}`,
-    allowedMentions: { parse: [] },
-  })
-}
-
-async function checkReportThresholdReached(totalMessageReports: number, reportedMessage: Message) {
-  if (totalMessageReports == reportConfig!.reportThreshold) {
-    await handleReportThresholdReached(reportedMessage, totalMessageReports)
-  }
-}
-async function handleReportThresholdReached(reportedMessage: Message, totalMessageReports: number) {
-  const reporters = await MessageReport.findAll({ where: { messageId: reportedMessage.id } })
-  await getLogChannel(reportedMessage.guild!)?.send({
-    content: (reportConfig!.reportNotifyRoles ?? []).map((roleId) => `<@&${roleId}>`).join(" "),
-    embeds: [
-      {
-        title: `Message report ${totalMessageReports} times!`,
-        description: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported:`,
-        fields: [
-          {
-            name: "Reports",
-            value: reporters
-              .map((report) => `<@${report.reporterId}>: ${report.reason || "No reason provided"}`)
-              .join("\n"),
-          },
-        ],
-      },
-    ],
-  })
 }
 
 async function createDbReport(reporter: GuildMember, reportedMessage: Message, reason: string | undefined) {
@@ -156,7 +137,7 @@ export async function acceptCommand(interaction: CommandInteraction, member: Gui
   return handleInteractionErrors(
     interaction,
     logger,
-    () => doAccept(interaction, member),
+    async () => doAccept(interaction, member),
     () =>
       interaction.reply({
         content: `You have been granted the <@&${acceptConfig!.grantRoleId}> role!`,
@@ -165,23 +146,44 @@ export async function acceptCommand(interaction: CommandInteraction, member: Gui
   )
 }
 
-async function doAccept(interaction: CommandInteraction, member: GuildMember): Promise<void> {
-  maybeUserError(checkCanAccept(interaction, member))
-
-  await member.roles.add(acceptConfig!.grantRoleId)
-  logger.info(`User <@${member.id}> accepted the rules and was granted the role <@&${acceptConfig!.grantRoleId}>`)
-  logErrors(logger, discordLogAccept(member))
-}
-
-async function discordLogAccept(member: GuildMember): Promise<void> {
-  await getLogChannel(member.guild)?.send({
-    content: `<@${member.id}> accepted the rules and was granted the <@&${acceptConfig!.grantRoleId}> role.`,
-    allowedMentions: { parse: [] },
+async function getCurrentTempBan(member: GuildMember): Promise<DiscussionTempBan | null> {
+  return await DiscussionTempBan.findOne({
+    where: {
+      userId: member.id,
+      guildId: member.guild.id,
+    },
   })
 }
 
-function checkCanAccept(interaction: CommandInteraction, member: GuildMember): string | undefined {
-  if (!acceptConfig) return "The accept feature is currently disabled."
+async function doAccept(interaction: CommandInteraction, member: GuildMember): Promise<void> {
+  maybeUserError(await checkCanAccept(interaction, member))
+  await member.roles.add(acceptConfig!.grantRoleId)
+  logAccept(member)
+}
+
+function logAccept(member: GuildMember) {
+  logBoth(member.guild, `<@${member.id}> accepted the rules and was granted the <@&${acceptConfig!.grantRoleId}> role.`)
+}
+
+function getBannedMessage(expiresAt: Date): string {
+  return (
+    `You have been temporarily banned from discussion for ${moderationConfig!.tempBanDays} days. ` +
+    `You may re-join discussion by re-running /accept <t:${Math.floor(expiresAt.getTime() / 1000)}:R>. ` +
+    `To appeal this ban, please open a src-admin-ticket.`
+  )
+}
+
+async function checkCanAccept(interaction: CommandInteraction, member: GuildMember): Promise<string | undefined> {
+  if (!acceptConfig) return "This feature is currently disabled."
+
+  if (member.roles.cache.has(acceptConfig.grantRoleId)) {
+    return `You already have the <@&${acceptConfig.grantRoleId}> role!`
+  }
+
+  const ban = await getCurrentTempBan(member)
+  if (ban && ban.expiresAt > new Date()) {
+    throw new UserError(getBannedMessage(ban.expiresAt))
+  }
 
   if (acceptConfig.requiredChannel && interaction.channelId !== acceptConfig.requiredChannel) {
     return `You must run this command in <#${acceptConfig.requiredChannel}>.`
@@ -197,9 +199,77 @@ function checkCanAccept(interaction: CommandInteraction, member: GuildMember): s
     }
   }
 
-  if (member.roles.cache.has(acceptConfig.grantRoleId)) {
-    return `You already have the <@&${acceptConfig.grantRoleId}> role!`
-  }
-
   return
+}
+
+function handleReportNonInteractive(
+  reporter: GuildMember,
+  reportedMessage: Message,
+  reportReason: string | undefined,
+  totalMessageReports: number,
+) {
+  const guild = reporter.guild
+  logReport(reportedMessage, reporter, reportReason)
+  if (totalMessageReports == reportConfig!.reportThreshold) {
+    logErrorsToChannel(guild, createTempBan(reportedMessage))
+    logErrorsToChannel(guild, logTempBan(reportedMessage))
+  }
+}
+
+async function createTempBan(reportedMessage: Message) {
+  const author = reportedMessage.member
+  if (!author) return
+  const guild = reportedMessage.guild!
+  const discusserRoleId = acceptConfig!.grantRoleId
+  const tempBanDays = moderationConfig!.tempBanDays
+  const now = new Date()
+  const expiresAt = new Date(now.getTime() + tempBanDays * 24 * 60 * 60 * 1000)
+  let ban = await getCurrentTempBan(author)
+  const banReason = `Message ${reportedMessage.id} reported ${reportConfig!.reportThreshold} times`
+  if (ban && ban.expiresAt > now) {
+    // Renew ban
+    ban.expiresAt = ban.expiresAt > expiresAt ? ban.expiresAt : expiresAt
+    ban.bannedAt = now
+    ban.reason = banReason
+  } else {
+    // New ban
+    ban = new DiscussionTempBan({
+      userId: author.id,
+      guildId: guild.id,
+      bannedAt: now,
+      expiresAt,
+      reason: banReason,
+    })
+  }
+  await ban.save()
+
+  if (discusserRoleId && author.roles.cache.has(discusserRoleId)) {
+    await author.roles.remove(discusserRoleId, "Temp ban due to message reports")
+  }
+  await author.send(getBannedMessage(expiresAt))
+}
+
+async function logTempBan(reportedMessage: Message) {
+  const totalMessageReports = reportConfig!.reportThreshold
+  const reporters = await MessageReport.findAll({ where: { messageId: reportedMessage.id } })
+  logger.info(
+    `Temp banning <@${reportedMessage.author.id}> for ${totalMessageReports} message reports on ${reportedMessage.url}.`,
+  )
+  await getLogChannel(reportedMessage.guild!)?.send({
+    content: (reportConfig!.banNotifyRoles ?? []).map((roleId) => `<@&${roleId}>`).join(" "),
+    embeds: [
+      {
+        title: `Temp ban!`,
+        description: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported ${totalMessageReports} times:`,
+        fields: [
+          {
+            name: "Reports",
+            value: reporters
+              .map((report) => `<@${report.reporterId}>: ${report.reason || "No reason provided"}`)
+              .join("\n"),
+          },
+        ],
+      },
+    ],
+  })
 }

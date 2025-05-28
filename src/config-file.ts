@@ -79,7 +79,7 @@ export interface ReportsConfig {
   forbiddenRoles?: Snowflake[]
   reportableChannels?: Snowflake[]
   reportThreshold: number
-  reportNotifyRoles?: Snowflake[]
+  banNotifyRoles?: Snowflake[]
 }
 
 export interface RulesAcceptConfig {
@@ -92,6 +92,7 @@ export interface DiscussionModerationConfig {
   logChannelId: Snowflake
   reports?: ReportsConfig
   accept?: RulesAcceptConfig
+  tempBanDays: number
 }
 
 const dev = process.env.NODE_ENV === "development"

@@ -1,10 +1,11 @@
 const Channels = {
   General: "1313690533406703739",
   NotGeneral: "1314039140169420830",
+  Discuss: "1377109913255542906",
 }
 const Roles = {
   Notif: "1314038714153828392",
-  Discusser: "1314038714153828392", // Using same role as Notif for development
+  Discusser: "1377107888887304283",
 }
 
 /** @typedef {import("./src/config-file.ts").Config} Config */
@@ -57,11 +58,15 @@ const config = {
   discussionModeration: {
     logChannelId: Channels.NotGeneral,
     reports: {
-      reportableChannels: [Channels.General],
-      reportNotifyRoles: [Roles.Notif],
-      requiredRoles: [Roles.Notif],
+      reportableChannels: [Channels.Discuss],
+      requiredRoles: [Roles.Discusser, Roles.Notif],
+      banNotifyRoles: [Roles.Notif],
       reportThreshold: 1,
     },
+    accept: {
+      grantRoleId: Roles.Discusser,
+    },
+    tempBanDays: 1 / 24 / 60, // 1 minute
   },
 }
 export default config

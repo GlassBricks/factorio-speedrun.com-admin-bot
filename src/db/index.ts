@@ -107,10 +107,41 @@ export class MessageReport extends Model<InferAttributes<MessageReport>, InferCr
   declare reason?: string
 }
 
+@Table
+export class DiscussionTempBan extends Model<
+  InferAttributes<DiscussionTempBan>,
+  InferCreationAttributes<DiscussionTempBan>
+> {
+  @PrimaryKey
+  @Column
+  declare guildId: Snowflake
+
+  @PrimaryKey
+  @Column
+  declare userId: Snowflake
+
+  @Column
+  declare bannedAt: Date
+
+  @Column
+  declare expiresAt: Date
+
+  @Column
+  declare reason?: string
+}
+
 const dev = process.env.NODE_ENV === "development"
 export const sequelize = new Sequelize({
   dialect: "sqlite",
   storage: dev ? ":memory:" : "database.sqlite",
   // storage: "database.sqlite",
-  models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun, AnnounceMessage, MessageReport],
+  models: [
+    VoteInitiateMessage,
+    KnownFactorioVersion,
+    SrcPlayer,
+    SrcRun,
+    AnnounceMessage,
+    MessageReport,
+    DiscussionTempBan,
+  ],
 })
