@@ -108,10 +108,7 @@ export class MessageReport extends Model<InferAttributes<MessageReport>, InferCr
 }
 
 @Table
-export class DiscussionTempBan extends Model<
-  InferAttributes<DiscussionTempBan>,
-  InferCreationAttributes<DiscussionTempBan>
-> {
+export class DiscussionBan extends Model<InferAttributes<DiscussionBan>, InferCreationAttributes<DiscussionBan>> {
   @PrimaryKey
   @Column
   declare guildId: Snowflake
@@ -135,13 +132,5 @@ export const sequelize = new Sequelize({
   dialect: "sqlite",
   storage: dev ? ":memory:" : "database.sqlite",
   // storage: "database.sqlite",
-  models: [
-    VoteInitiateMessage,
-    KnownFactorioVersion,
-    SrcPlayer,
-    SrcRun,
-    AnnounceMessage,
-    MessageReport,
-    DiscussionTempBan,
-  ],
+  models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun, AnnounceMessage, MessageReport, DiscussionBan],
 })

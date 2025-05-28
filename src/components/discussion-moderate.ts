@@ -10,7 +10,7 @@ import {
 } from "discord.js"
 import config from "../config-file.js"
 import { createLogger } from "../logger.js"
-import { DiscussionTempBan, MessageReport, sequelize } from "../db/index.js"
+import { DiscussionBan, MessageReport, sequelize } from "../db/index.js"
 import { handleInteractionErrors, maybeUserError, UserError } from "./error-handling.js"
 
 const moderationConfig = config.discussionModeration
@@ -151,10 +151,9 @@ async function doAccept(interaction: CommandInteraction, member: GuildMember): P
 }
 
 function logAccept(member: GuildMember) {
-  logBoth(
-    member.guild,
-    `<@${member.id}> accepted the rules and was granted the <@&${moderationConfig!.grantRoleId}> role.`,
-  )
+  const message = `<@${member.id}> accepted the rules and was granted the <@&${moderationConfig!.grantRoleId}> role.`
+  // logBoth( member.guild, message )
+  logger.info(message)
 }
 
 async function checkCanAccept(interaction: CommandInteraction, member: GuildMember): Promise<string | undefined> {
@@ -164,9 +163,9 @@ async function checkCanAccept(interaction: CommandInteraction, member: GuildMemb
     return `You already have the <@&${moderationConfig.grantRoleId}> role!`
   }
 
-  const ban = await getCurrentTempBan(member)
+  const ban = await getCurrentBan(member)
   if (ban && ban.expiresAt > new Date()) {
-    throw new UserError(getBannedMessage(ban.expiresAt))
+    throw new UserError(getBanMessage(ban))
   }
 
   if (moderationConfig.acceptChannel && interaction.channelId !== moderationConfig.acceptChannel) {
@@ -196,19 +195,22 @@ function checkCanUnaccept(member: GuildMember): string | undefined {
   return
 }
 
-async function getCurrentTempBan(member: GuildMember): Promise<DiscussionTempBan | null> {
-  return await DiscussionTempBan.findOne({
+async function getCurrentBan(member: GuildMember): Promise<DiscussionBan | null> {
+  return await DiscussionBan.findOne({
     where: {
       userId: member.id,
       guildId: member.guild.id,
     },
   })
 }
-function getBannedMessage(expiresAt: Date): string {
+
+function getBanMessage(ban: DiscussionBan): string {
+  const expiresAt = ban.expiresAt
+  const expiresAtTimestamp = `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`
   return (
-    `You have been temporarily banned from discussion for ${moderationConfig!.tempBanDays} days. ` +
-    `You may re-join discussion by re-running /accept <t:${Math.floor(expiresAt.getTime() / 1000)}:R>. ` +
-    `To appeal this ban, please open a src-admin-ticket.`
+    `You have been temporarily banned from discussion${ban.reason ? ` due to ${ban.reason}` : ""}.\n` +
+    `You may re-join discussion by re-running /accept ${expiresAtTimestamp}.\n` +
+    `To appeal this ban, please open a src-admin ticket.`
   )
 }
 
@@ -221,12 +223,12 @@ function handleReportNonInteractive(
   const guild = reporter.guild
   logReport(reportedMessage, reporter, reportReason)
   if (totalMessageReports == moderationConfig!.reportsTempBanThreshold) {
-    logErrorsToChannel(guild, createTempBan(reportedMessage))
+    logErrorsToChannel(guild, createTempBanFromMessageReports(reportedMessage))
     logErrorsToChannel(guild, logTempBan(reportedMessage))
   }
 }
 
-async function createTempBan(reportedMessage: Message) {
+async function createTempBanFromMessageReports(reportedMessage: Message) {
   const author = reportedMessage.member
   if (!author) return
   const guild = reportedMessage.guild!
@@ -234,8 +236,8 @@ async function createTempBan(reportedMessage: Message) {
   const tempBanDays = moderationConfig!.tempBanDays
   const now = new Date()
   const expiresAt = new Date(now.getTime() + tempBanDays * 24 * 60 * 60 * 1000)
-  let ban = await getCurrentTempBan(author)
-  const banReason = `Message ${reportedMessage.id} reported ${moderationConfig!.reportsTempBanThreshold} times`
+  let ban = await getCurrentBan(author)
+  const banReason = `${moderationConfig!.reportsTempBanThreshold} on ${reportedMessage.url}`
   if (ban && ban.expiresAt > now) {
     // Renew ban
     ban.expiresAt = ban.expiresAt > expiresAt ? ban.expiresAt : expiresAt
@@ -243,7 +245,7 @@ async function createTempBan(reportedMessage: Message) {
     ban.reason = banReason
   } else {
     // New ban
-    ban = new DiscussionTempBan({
+    ban = new DiscussionBan({
       userId: author.id,
       guildId: guild.id,
       bannedAt: now,
@@ -256,7 +258,7 @@ async function createTempBan(reportedMessage: Message) {
   if (discusserRoleId && author.roles.cache.has(discusserRoleId)) {
     await author.roles.remove(discusserRoleId, "Temp ban due to message reports")
   }
-  await author.send(getBannedMessage(expiresAt))
+  await author.send(getBanMessage(ban))
 }
 
 async function logTempBan(reportedMessage: Message) {

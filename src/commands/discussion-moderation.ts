@@ -132,7 +132,11 @@ export class UnacceptCommand extends Command {
 
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
     registry.registerChatInputCommand((builder) =>
-      builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild),
+      builder
+        .setName(this.name)
+        .setDescription(this.description)
+        .setContexts(InteractionContextType.Guild)
+        .setDefaultMemberPermissions("0"),
     )
   }
 
