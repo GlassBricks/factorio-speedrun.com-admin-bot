@@ -26,26 +26,34 @@ import { DiscussionBan, MessageReport } from "../db/index.js"
 })
 export class ReportCommand extends Command {
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
-    registry.registerChatInputCommand((builder) =>
-      builder
-        .setName(this.name)
-        .setDescription(this.description)
-        .setContexts(InteractionContextType.Guild)
-        .addStringOption((option) =>
-          option
-            .setName("message-link")
-            .setDescription('Message to report (right click -> "Copy message link" -> paste here)')
-            .setRequired(true),
-        )
-        .addStringOption((option) => option.setName("reason").setDescription("Report reason"))
-        .setDefaultMemberPermissions("0"),
+    registry.registerChatInputCommand(
+      (builder) =>
+        builder
+          .setName(this.name)
+          .setDescription(this.description)
+          .setContexts(InteractionContextType.Guild)
+          .addStringOption((option) =>
+            option
+              .setName("message-link")
+              .setDescription('Message to report (right click -> "Copy message link" -> paste here)')
+              .setRequired(true),
+          )
+          .addStringOption((option) => option.setName("reason").setDescription("Report reason"))
+          .setDefaultMemberPermissions("0"),
+      {
+        idHints: config.discussionModeration?.reportIdHint,
+      },
     )
-    registry.registerContextMenuCommand((builder) =>
-      builder
-        .setName("Report Message")
-        .setContexts(InteractionContextType.Guild)
-        .setType(ApplicationCommandType.Message as ContextMenuCommandType)
-        .setDefaultMemberPermissions("0"),
+    registry.registerContextMenuCommand(
+      (builder) =>
+        builder
+          .setName("Report Message")
+          .setContexts(InteractionContextType.Guild)
+          .setType(ApplicationCommandType.Message as ContextMenuCommandType)
+          .setDefaultMemberPermissions("0"),
+      {
+        idHints: config.discussionModeration?.reportContextMenuIdHint,
+      },
     )
   }
 
@@ -91,8 +99,12 @@ export class ReportCommand extends Command {
 })
 export class AcceptCommand extends Command {
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
-    registry.registerChatInputCommand((builder) =>
-      builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild),
+    registry.registerChatInputCommand(
+      (builder) =>
+        builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild),
+      {
+        idHints: config.discussionModeration?.acceptIdHint,
+      },
     )
   }
 
@@ -115,12 +127,16 @@ export class AcceptCommand extends Command {
 })
 export class UnacceptCommand extends Command {
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
-    registry.registerChatInputCommand((builder) =>
-      builder
-        .setName(this.name)
-        .setDescription(this.description)
-        .setContexts(InteractionContextType.Guild)
-        .setDefaultMemberPermissions("0"),
+    registry.registerChatInputCommand(
+      (builder) =>
+        builder
+          .setName(this.name)
+          .setDescription(this.description)
+          .setContexts(InteractionContextType.Guild)
+          .setDefaultMemberPermissions("0"),
+      {
+        idHints: config.discussionModeration?.unacceptIdHint,
+      },
     )
   }
 
@@ -151,31 +167,39 @@ export class DiscussAdminCommand extends Subcommand {
   logger = createLogger("DiscussAdminCommand")
 
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
-    registry.registerChatInputCommand((builder) =>
-      builder
-        .setName("discuss-admin")
-        .setDescription("Admin commands for discussion moderation")
-        .addSubcommand((sub) =>
-          sub
-            .setName("reports-on")
-            .setDescription("List reports on messages authored by a user")
-            .addUserOption((opt) => opt.setName("user").setDescription("User to check reports for").setRequired(true)),
-        )
-        .addSubcommand((sub) =>
-          sub
-            .setName("reports-by")
-            .setDescription("List reports made by a user")
-            .addUserOption((opt) => opt.setName("user").setDescription("User to check reports for").setRequired(true)),
-        )
-        .addSubcommand((sub) =>
-          sub
-            .setName("ban-status")
-            .setDescription("Show ban status of a user")
-            .addUserOption((opt) =>
-              opt.setName("user").setDescription("User to check ban status for").setRequired(true),
-            ),
-        )
-        .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+    registry.registerChatInputCommand(
+      (builder) =>
+        builder
+          .setName(this.name)
+          .setDescription(this.description)
+          .addSubcommand((sub) =>
+            sub
+              .setName("reports-on")
+              .setDescription("List reports on messages authored by a user")
+              .addUserOption((opt) =>
+                opt.setName("user").setDescription("User to check reports for").setRequired(true),
+              ),
+          )
+          .addSubcommand((sub) =>
+            sub
+              .setName("reports-by")
+              .setDescription("List reports made by a user")
+              .addUserOption((opt) =>
+                opt.setName("user").setDescription("User to check reports for").setRequired(true),
+              ),
+          )
+          .addSubcommand((sub) =>
+            sub
+              .setName("ban-status")
+              .setDescription("Show ban status of a user")
+              .addUserOption((opt) =>
+                opt.setName("user").setDescription("User to check ban status for").setRequired(true),
+              ),
+          )
+          .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
+      {
+        idHints: config.discussionModeration?.discussAdminIdHint,
+      },
     )
   }
 

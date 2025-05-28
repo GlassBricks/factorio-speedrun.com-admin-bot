@@ -87,6 +87,12 @@ export interface DiscussionModerationConfig {
 
   tempBanDays: number
   tempBanNotify?: Snowflake[]
+
+  acceptIdHint?: Snowflake[]
+  reportIdHint?: Snowflake[]
+  reportContextMenuIdHint?: Snowflake[]
+  unacceptIdHint?: Snowflake[]
+  discussAdminIdHint?: Snowflake[]
 }
 
 const dev = process.env.NODE_ENV === "development"

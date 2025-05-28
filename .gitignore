@@ -1,6 +1,6 @@
 .idea
 *.iml
 node_modules/
-.env
+.env*
 out
 database.sqlite

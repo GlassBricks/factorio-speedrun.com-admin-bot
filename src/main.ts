@@ -46,4 +46,9 @@ setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
 
 await sequelize.sync({ alter: true })
 client.logger.info("Database synced")
+client.on("applicationCommandRegistriesRegistered", () => {
+  for (const [name, command] of client.application?.commands.cache ?? []) {
+    console.log(name, command.name)
+  }
+})
 await client.login(process.env.DISCORD_TOKEN)

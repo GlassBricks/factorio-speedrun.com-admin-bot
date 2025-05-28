@@ -114,6 +114,12 @@ If %n %r reacts are received %e, ` + reelectDescription,
 
     tempBanDays: 3,
     // tempBanNotify: [Roles.SrcAdmin],
+
+    discussAdminIdHint: ["1377316202115764345"],
+    reportIdHint: ["1377316203768451152"],
+    reportContextMenuIdHint: ["1377316204389339207"],
+    unacceptIdHint: ["1377309732909355159"],
+    acceptIdHint: ["1377309729885257738"],
   },
 }
 export default config
