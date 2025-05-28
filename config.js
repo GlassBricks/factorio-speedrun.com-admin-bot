@@ -100,11 +100,13 @@ If %n %r reacts are received %e, ` + reelectDescription,
       reactions: ["🍎"],
     },
   ],
-  messageReport: {
-    reportNotifyRoles: [Roles.SrcAdmin],
-    requiredRoles: [Roles.Discusser],
+  discussionModeration: {
     logChannelId: Channels.TranscriptsAndLogs,
-    reportThreshold: 3,
+    reports: {
+      reportNotifyRoles: [Roles.SrcAdmin],
+      requiredRoles: [Roles.Discusser],
+      reportThreshold: 3,
+    },
   },
 }
 export default config

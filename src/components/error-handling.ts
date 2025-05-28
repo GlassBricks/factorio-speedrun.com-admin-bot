@@ -1,0 +1,44 @@
+import { CommandInteraction } from "discord.js"
+import { ILogger } from "@sapphire/framework"
+
+export class UserError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "UserError"
+  }
+}
+
+export async function handleInteractionErrors<T>(
+  interaction: CommandInteraction,
+  logger: ILogger,
+  fn: () => Promise<T> | T,
+  onSuccess: (result: T) => Promise<unknown> | void,
+): Promise<void> {
+  try {
+    const result = await fn()
+    await onSuccess(result)
+  } catch (error) {
+    if (error instanceof UserError) {
+      await interaction.reply({ content: error.message, ephemeral: true })
+      return
+    }
+    logger.error("Unexpected error in command:", error)
+    await interaction.reply({
+      content: "An unexpected error occurred while processing your request! Please report this to the admins/dev.",
+      ephemeral: true,
+    })
+    return
+  }
+}
+
+export function logErrors(logger: ILogger, promise: Promise<unknown>) {
+  promise.catch((error) => {
+    logger.error("Unhandled error in promise:", error)
+  })
+}
+
+export function maybeUserError(message: string | undefined): void {
+  if (message) {
+    throw new UserError(message)
+  }
+}

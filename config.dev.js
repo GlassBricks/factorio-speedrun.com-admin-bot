@@ -1,4 +1,3 @@
-const GuildID = "1313690532953853992"
 const Channels = {
   General: "1313690533406703739",
   NotGeneral: "1314039140169420830",
@@ -54,12 +53,14 @@ const config = {
       reactions: ["🍎"],
     },
   ],
-  messageReport: {
-    reportableChannels: [Channels.General],
-    reportNotifyRoles: [Roles.Notif],
-    requiredRoles: [Roles.Notif],
+  discussionModeration: {
     logChannelId: Channels.NotGeneral,
-    reportThreshold: 1,
+    reports: {
+      reportableChannels: [Channels.General],
+      reportNotifyRoles: [Roles.Notif],
+      requiredRoles: [Roles.Notif],
+      reportThreshold: 1,
+    },
   },
 }
 export default config

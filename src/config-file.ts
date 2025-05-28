@@ -8,7 +8,7 @@ export interface Config {
   announceNewFactorioVersion?: AnnounceFactorioVersionConfig
   autoReact?: AutoReactConfig[]
   announceSrcSubmissions?: AnnounceSrcSubmissionsConfig
-  messageReport?: MessageReportConfig
+  discussionModeration?: DiscussionModerationConfig
 }
 
 export interface VoteInitiateCommandConfig {
@@ -74,14 +74,17 @@ export interface AutoReactConfig {
   reactions: string[]
 }
 
-export interface MessageReportConfig {
+export interface ReportsConfig {
   requiredRoles?: Snowflake[]
   forbiddenRoles?: Snowflake[]
   reportableChannels?: Snowflake[]
-
-  logChannelId: Snowflake
   reportThreshold: number
   reportNotifyRoles?: Snowflake[]
+}
+
+export interface DiscussionModerationConfig {
+  logChannelId: Snowflake
+  reports?: ReportsConfig
 }
 
 const dev = process.env.NODE_ENV === "development"

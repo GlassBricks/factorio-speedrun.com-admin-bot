@@ -16,24 +16,24 @@
     "@sapphire/decorators": "^6.1.1",
     "@sapphire/framework": "^5.3.5",
     "@sapphire/plugin-logger": "^4.0.2",
-    "discord.js": "^14.16.3",
-    "dotenv": "^16.4.7",
+    "discord.js": "^14.19.3",
+    "dotenv": "^16.5.0",
     "iso8601-duration": "^2.1.2",
     "node-schedule": "^2.1.1",
     "reflect-metadata": "^0.2.2",
-    "sequelize": "^6.37.5",
+    "sequelize": "^6.37.7",
     "sequelize-typescript": "^2.1.6",
     "sqlite3": "^5.1.7",
     "src-ts": "^2.10.0"
   },
   "devDependencies": {
-    "@eslint/js": "^9.16.0",
+    "@eslint/js": "^9.27.0",
     "@types/node-schedule": "^2.1.7",
     "discord-api-types": "^0.38.8",
-    "eslint": "^9.16.0",
-    "prettier": "^3.4.1",
-    "typescript": "^5.7.2",
-    "typescript-eslint": "^8.17.0"
+    "eslint": "^9.27.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.3",
+    "typescript-eslint": "^8.33.0"
   },
   "prettier": {
     "semi": false,

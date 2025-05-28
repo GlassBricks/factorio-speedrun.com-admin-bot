@@ -1,3 +1,5 @@
+// noinspection JSUnusedGlobalSymbols
+
 import { ApplicationCommandRegistry, Command } from "@sapphire/framework"
 import {
   ChatInputCommandInteraction,
@@ -7,7 +9,7 @@ import {
   InteractionContextType,
   Message,
 } from "discord.js"
-import { report } from "../components/report.js"
+import { report } from "../components/discussion-moderate.js"
 import { ApplicationCommandType } from "discord-api-types/v10"
 
 export class ReportCommand extends Command {
