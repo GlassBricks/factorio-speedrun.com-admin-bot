@@ -11,7 +11,7 @@ import {
 import config from "../config-file.js"
 import { createLogger } from "../logger.js"
 import { DiscussionBan, MessageReport, sequelize } from "../db/index.js"
-import { handleInteractionErrors, maybeUserError, UserError } from "./error-handling.js"
+import { handleInteractionErrors, maybeUserError } from "./error-handling.js"
 
 const moderationConfig = config.discussionModeration
 const logger = createLogger("[Discussion]")
@@ -167,7 +167,7 @@ async function checkCanAccept(interaction: CommandInteraction, member: GuildMemb
 
   const ban = await getCurrentBan(member)
   if (ban && ban.expiresAt > new Date()) {
-    throw new UserError(getBanMessage(ban))
+    return getBanMessage(ban)
   }
 
   if (moderationConfig.acceptChannel && interaction.channelId !== moderationConfig.acceptChannel) {
