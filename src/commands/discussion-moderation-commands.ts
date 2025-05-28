@@ -150,7 +150,7 @@ export class UnacceptCommand extends Command {
 
 @ApplyOptions<Subcommand.Options>({
   name: "discussion-moderation",
-  description: "Moderation admin commands for discussion moderation",
+  description: "Admin commands for discussion moderation",
   subcommands: [
     { name: "reports-on", chatInputRun: "chatInputReportsOn" },
     { name: "reports-by", chatInputRun: "chatInputReportsBy" },
