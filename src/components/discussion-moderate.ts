@@ -144,7 +144,7 @@ export async function unacceptCommand(interaction: CommandInteraction, member: G
     () => doUnaccept(member),
     () =>
       interaction.reply({
-        content: `You have been removed from the <@&${moderationConfig!.grantRoleId}> role!`,
+        content: `Your <@&${moderationConfig!.grantRoleId}> role was removed.`,
         flags: MessageFlags.Ephemeral,
       }),
   )
@@ -188,7 +188,9 @@ async function doUnaccept(member: GuildMember): Promise<void> {
 }
 
 function logUnaccept(member: GuildMember) {
-  logBoth(member.guild, `<@${member.id}> was removed from the <@&${moderationConfig!.grantRoleId}> role.`)
+  const message = `<@${member.id}> was removed from the <@&${moderationConfig!.grantRoleId}> role.`
+  // logBoth( member.guild, message )
+  logger.info(message)
 }
 
 function checkCanUnaccept(member: GuildMember): string | undefined {
