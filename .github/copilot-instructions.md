@@ -26,6 +26,6 @@ Prefer functional programming style where practical.
 ## Writing new code
 
 Add additional imports for types when needed.
-If needed, write new code as if additional symbols are already imported, even if they are not yet. 
+If needed, write new code as if additional symbols are already imported, even if they are not yet.
 If code is too deeply nested, introduce a function call to a descriptive function, even if the function does not _yet_
 exist. Write it so it will be easy to implement soon after.
