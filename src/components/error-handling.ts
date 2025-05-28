@@ -1,4 +1,4 @@
-import { CommandInteraction } from "discord.js"
+import { CommandInteraction, MessageFlags } from "discord.js"
 import { ILogger } from "@sapphire/framework"
 
 export class UserError extends Error {
@@ -19,13 +19,13 @@ export async function handleInteractionErrors<T>(
     await onSuccess(result)
   } catch (error) {
     if (error instanceof UserError) {
-      await interaction.reply({ content: error.message, ephemeral: true })
+      await interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral })
       return
     }
     logger.error("Unexpected error in command:", error)
     await interaction.reply({
       content: "An unexpected error occurred while processing your request! Please report this to the admins/dev.",
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     })
     return
   }

@@ -8,15 +8,18 @@ import {
   ContextMenuCommandType,
   InteractionContextType,
   Message,
+  MessageFlags,
 } from "discord.js"
 import { report } from "../components/discussion-moderate.js"
 import { ApplicationCommandType } from "discord-api-types/v10"
+import config from "../config-file.js"
 
 export class ReportCommand extends Command {
   constructor(ctx: Command.LoaderContext, options: Command.Options) {
     super(ctx, {
       name: "report",
       description: "Report a message",
+      enabled: !!config.discussionModeration?.reports,
       ...options,
     })
   }
@@ -55,13 +58,13 @@ export class ReportCommand extends Command {
       return interaction.reply({
         content:
           "Could not find the provided message! Please check the link, or contact the admins/devs if you think this is a bug.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       })
     }
     if (!interaction.inCachedGuild()) {
       return interaction.reply({
         content: "This command can only be used in a server.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       })
     }
     return report(interaction, interaction.member, message, interaction.options.getString("reason") ?? undefined)
@@ -71,7 +74,7 @@ export class ReportCommand extends Command {
     if (!interaction.inCachedGuild() || !interaction.isMessageContextMenuCommand()) {
       return interaction.reply({
         content: "This command can only be used in a server.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       })
     }
     const message = interaction.targetMessage

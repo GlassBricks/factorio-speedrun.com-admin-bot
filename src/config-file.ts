@@ -82,9 +82,16 @@ export interface ReportsConfig {
   reportNotifyRoles?: Snowflake[]
 }
 
+export interface RulesAcceptConfig {
+  requiredChannel?: Snowflake
+  requiredRoles?: Snowflake[]
+  grantRoleId: Snowflake
+}
+
 export interface DiscussionModerationConfig {
   logChannelId: Snowflake
   reports?: ReportsConfig
+  accept?: RulesAcceptConfig
 }
 
 const dev = process.env.NODE_ENV === "development"

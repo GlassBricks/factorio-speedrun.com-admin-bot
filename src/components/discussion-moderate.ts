@@ -1,4 +1,12 @@
-import { CommandInteraction, Guild, GuildMember, Message, SendableChannels, TextBasedChannel } from "discord.js"
+import {
+  CommandInteraction,
+  Guild,
+  GuildMember,
+  Message,
+  MessageFlags,
+  SendableChannels,
+  TextBasedChannel,
+} from "discord.js"
 import config from "../config-file.js"
 import { createLogger } from "../logger.js"
 import { MessageReport, sequelize } from "../db/index.js"
@@ -6,8 +14,9 @@ import { handleInteractionErrors, logErrors, maybeUserError } from "./error-hand
 
 const moderationConfig = config.discussionModeration
 const reportConfig = moderationConfig?.reports
+const acceptConfig = moderationConfig?.accept
 
-const logger = createLogger("[report]")
+const logger = createLogger("[Discussion]")
 
 function getLogChannel(guild: Guild): (TextBasedChannel & SendableChannels) | undefined {
   if (!moderationConfig) return undefined
@@ -32,7 +41,7 @@ export async function report(
     () =>
       interaction.reply({
         content: "Your report was submitted:\n" + ` ${reportedMessage.url}: ${reason || "No reason provided"}`,
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       }),
   )
 }
@@ -138,6 +147,58 @@ async function checkCanReport(reporter: GuildMember, reportedMessage: Message): 
   })
   if (existingReport) {
     return "You have already reported this message with the reason: " + (existingReport.reason || "No reason provided")
+  }
+
+  return
+}
+
+export async function acceptCommand(interaction: CommandInteraction, member: GuildMember) {
+  return handleInteractionErrors(
+    interaction,
+    logger,
+    () => doAccept(interaction, member),
+    () =>
+      interaction.reply({
+        content: `You have been granted the <@&${acceptConfig!.grantRoleId}> role!`,
+        flags: MessageFlags.Ephemeral,
+      }),
+  )
+}
+
+async function doAccept(interaction: CommandInteraction, member: GuildMember): Promise<void> {
+  maybeUserError(checkCanAccept(interaction, member))
+
+  await member.roles.add(acceptConfig!.grantRoleId)
+  logger.info(`User <@${member.id}> accepted the rules and was granted the role <@&${acceptConfig!.grantRoleId}>`)
+  logErrors(logger, discordLogAccept(member))
+}
+
+async function discordLogAccept(member: GuildMember): Promise<void> {
+  await getLogChannel(member.guild)?.send({
+    content: `<@${member.id}> accepted the rules and was granted the <@&${acceptConfig!.grantRoleId}> role.`,
+    allowedMentions: { parse: [] },
+  })
+}
+
+function checkCanAccept(interaction: CommandInteraction, member: GuildMember): string | undefined {
+  if (!acceptConfig) return "The accept feature is currently disabled."
+
+  if (acceptConfig.requiredChannel && interaction.channelId !== acceptConfig.requiredChannel) {
+    return `You must run this command in <#${acceptConfig.requiredChannel}>.`
+  }
+
+  if (acceptConfig.requiredRoles) {
+    const hasRequiredRole = acceptConfig.requiredRoles.some((roleId) => member.roles.cache.has(roleId))
+    if (!hasRequiredRole) {
+      return (
+        "You do not have one of the required roles: " +
+        acceptConfig.requiredRoles.map((roleId) => `<@&${roleId}>`).join(", ")
+      )
+    }
+  }
+
+  if (member.roles.cache.has(acceptConfig.grantRoleId)) {
+    return `You already have the <@&${acceptConfig.grantRoleId}> role!`
   }
 
   return

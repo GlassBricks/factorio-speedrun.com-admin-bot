@@ -4,6 +4,7 @@ const Channels = {
 }
 const Roles = {
   Notif: "1314038714153828392",
+  Discusser: "1314038714153828392", // Using same role as Notif for development
 }
 
 /** @typedef {import("./src/config-file.ts").Config} Config */

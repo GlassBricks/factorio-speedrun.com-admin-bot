@@ -8,6 +8,7 @@ import {
   GuildBasedChannel,
   InteractionContextType,
   Message,
+  MessageFlags,
   MessageReaction,
   PartialMessageReaction,
   Snowflake,
@@ -70,7 +71,7 @@ export class VoteInitiateCommandHandler {
         content:
           this.config.alreadyRunningMessage +
           messageLink(current.message.guildId, current.message.channelId, current.message.id),
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       })
       return
     }
@@ -78,7 +79,7 @@ export class VoteInitiateCommandHandler {
     if (!guild || !this.config.guildIds.includes(guild.id)) {
       await interaction.reply({
         content: "Invalid guild configuration. Please contact an administrator.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       })
       return
     }
@@ -86,7 +87,7 @@ export class VoteInitiateCommandHandler {
     if (!channel || !channel.isTextBased()) {
       await interaction.reply({
         content: "Invalid channel configuration. Please contact an administrator.",
-        ephemeral: true,
+        flags: MessageFlags.Ephemeral,
       })
       return
     }
@@ -108,7 +109,7 @@ export class VoteInitiateCommandHandler {
     const response = await interaction.reply({
       content: this.formatMessage(this.config.confirmationMessage, undefined, new Date()),
       components: [row],
-      ephemeral: true,
+      flags: MessageFlags.Ephemeral,
     })
 
     try {
