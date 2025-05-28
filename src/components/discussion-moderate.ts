@@ -11,7 +11,6 @@ import config from "../config-file.js"
 import { createLogger } from "../logger.js"
 import { DiscussionTempBan, MessageReport, sequelize } from "../db/index.js"
 import { handleInteractionErrors, maybeUserError, UserError } from "./error-handling.js"
-import { Op } from "sequelize"
 
 const moderationConfig = config.discussionModeration
 const reportConfig = moderationConfig?.reports
@@ -137,7 +136,7 @@ export async function acceptCommand(interaction: CommandInteraction, member: Gui
   return handleInteractionErrors(
     interaction,
     logger,
-    async () => doAccept(interaction, member),
+    () => doAccept(interaction, member),
     () =>
       interaction.reply({
         content: `You have been granted the <@&${acceptConfig!.grantRoleId}> role!`,
@@ -146,13 +145,17 @@ export async function acceptCommand(interaction: CommandInteraction, member: Gui
   )
 }
 
-async function getCurrentTempBan(member: GuildMember): Promise<DiscussionTempBan | null> {
-  return await DiscussionTempBan.findOne({
-    where: {
-      userId: member.id,
-      guildId: member.guild.id,
-    },
-  })
+export async function unacceptCommand(interaction: CommandInteraction, member: GuildMember) {
+  return handleInteractionErrors(
+    interaction,
+    logger,
+    () => doUnaccept(member),
+    () =>
+      interaction.reply({
+        content: `You have been removed from the <@&${acceptConfig!.grantRoleId}> role!`,
+        flags: MessageFlags.Ephemeral,
+      }),
+  )
 }
 
 async function doAccept(interaction: CommandInteraction, member: GuildMember): Promise<void> {
@@ -163,14 +166,6 @@ async function doAccept(interaction: CommandInteraction, member: GuildMember): P
 
 function logAccept(member: GuildMember) {
   logBoth(member.guild, `<@${member.id}> accepted the rules and was granted the <@&${acceptConfig!.grantRoleId}> role.`)
-}
-
-function getBannedMessage(expiresAt: Date): string {
-  return (
-    `You have been temporarily banned from discussion for ${moderationConfig!.tempBanDays} days. ` +
-    `You may re-join discussion by re-running /accept <t:${Math.floor(expiresAt.getTime() / 1000)}:R>. ` +
-    `To appeal this ban, please open a src-admin-ticket.`
-  )
 }
 
 async function checkCanAccept(interaction: CommandInteraction, member: GuildMember): Promise<string | undefined> {
@@ -200,6 +195,42 @@ async function checkCanAccept(interaction: CommandInteraction, member: GuildMemb
   }
 
   return
+}
+
+async function doUnaccept(member: GuildMember): Promise<void> {
+  maybeUserError(checkCanUnaccept(member))
+  await member.roles.remove(acceptConfig!.grantRoleId)
+  logUnaccept(member)
+}
+
+function logUnaccept(member: GuildMember) {
+  logBoth(member.guild, `<@${member.id}> was removed from the <@&${acceptConfig!.grantRoleId}> role.`)
+}
+
+function checkCanUnaccept(member: GuildMember): string | undefined {
+  if (!acceptConfig) return "This feature is currently disabled."
+
+  if (!member.roles.cache.has(acceptConfig.grantRoleId)) {
+    return `You already don't have the <@&${acceptConfig.grantRoleId}> role!`
+  }
+
+  return
+}
+
+async function getCurrentTempBan(member: GuildMember): Promise<DiscussionTempBan | null> {
+  return await DiscussionTempBan.findOne({
+    where: {
+      userId: member.id,
+      guildId: member.guild.id,
+    },
+  })
+}
+function getBannedMessage(expiresAt: Date): string {
+  return (
+    `You have been temporarily banned from discussion for ${moderationConfig!.tempBanDays} days. ` +
+    `You may re-join discussion by re-running /accept <t:${Math.floor(expiresAt.getTime() / 1000)}:R>. ` +
+    `To appeal this ban, please open a src-admin-ticket.`
+  )
 }
 
 function handleReportNonInteractive(

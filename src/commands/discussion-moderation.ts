@@ -10,7 +10,7 @@ import {
   Message,
   MessageFlags,
 } from "discord.js"
-import { report } from "../components/discussion-moderate.js"
+import { acceptCommand, report, unacceptCommand } from "../components/discussion-moderate.js"
 import { ApplicationCommandType } from "discord-api-types/v10"
 import config from "../config-file.js"
 
@@ -90,4 +90,60 @@ async function getMessageFromLink(client: Client<true>, link: string): Promise<M
   const channel = await guild.channels.fetch(channelId)
   if (!channel || !channel.isTextBased()) return undefined
   return channel.messages.fetch(messageId)
+}
+
+export class AcceptCommand extends Command {
+  constructor(ctx: Command.LoaderContext, options: Command.Options) {
+    super(ctx, {
+      name: "accept",
+      description: "Accept the rules and get the discusser role",
+      enabled: !!config.discussionModeration?.accept,
+      ...options,
+    })
+  }
+
+  override registerApplicationCommands(registry: ApplicationCommandRegistry) {
+    registry.registerChatInputCommand((builder) =>
+      builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild),
+    )
+  }
+
+  override async chatInputRun(interaction: ChatInputCommandInteraction) {
+    if (!interaction.inCachedGuild()) {
+      return interaction.reply({
+        content: "This command can only be used in a server.",
+        flags: MessageFlags.Ephemeral,
+      })
+    }
+
+    return acceptCommand(interaction, interaction.member)
+  }
+}
+
+export class UnacceptCommand extends Command {
+  constructor(ctx: Command.LoaderContext, options: Command.Options) {
+    super(ctx, {
+      name: "unaccept",
+      description: "Remove the discusser role",
+      enabled: !!config.discussionModeration?.accept,
+      ...options,
+    })
+  }
+
+  override registerApplicationCommands(registry: ApplicationCommandRegistry) {
+    registry.registerChatInputCommand((builder) =>
+      builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild),
+    )
+  }
+
+  override async chatInputRun(interaction: ChatInputCommandInteraction) {
+    if (!interaction.inCachedGuild()) {
+      return interaction.reply({
+        content: "This command can only be used in a server.",
+        flags: MessageFlags.Ephemeral,
+      })
+    }
+
+    return unacceptCommand(interaction, interaction.member)
+  }
 }
