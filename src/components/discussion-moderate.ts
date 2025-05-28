@@ -94,8 +94,12 @@ async function checkCanReport(reporter: GuildMember, reportedMessage: Message): 
   if (!moderationConfig) {
     return "Reporting is currently disabled."
   }
-  if (moderationConfig.reportableChannels && !moderationConfig.reportableChannels.includes(reportedMessage.channelId)) {
-    return "You cannot report messages in this channel."
+  if (moderationConfig.reportableChannels) {
+    const channel = reportedMessage.channel
+    const channelId = ("parentId" in channel && channel.parentId) || channel.id
+    if (!moderationConfig.reportableChannels.includes(channelId)) {
+      return "You cannot report messages in this channel."
+    }
   }
   if (!dev && reportedMessage.author.id === reporter.id) {
     return "You cannot report your own messages."

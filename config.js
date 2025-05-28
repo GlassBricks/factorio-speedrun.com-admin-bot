@@ -12,7 +12,7 @@ const Channels = {
   FeedbackRelay: "1322336566705655838",
   RunAdministration: "1201292109332885584",
   DiscussionAccept: "1374810532581871737",
-  Discussion: "1374810532581871737",
+  Discussion: "1377325180199632906",
 }
 
 const moreInfoDescription =
@@ -109,7 +109,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
     grantRoleId: Roles.Discusser,
 
     reportRequiredRoles: [Roles.Discusser],
-    reportableChannels: [Channels.Discussion],
+    reportableChannels: [Channels.Discussion, Channels.DiscussionAccept],
     reportsTempBanThreshold: 3,
 
     tempBanDays: 3,
