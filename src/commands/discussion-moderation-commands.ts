@@ -19,16 +19,12 @@ import { createLogger } from "../logger.js"
 import { handleInteractionErrors } from "../components/error-handling.js"
 import { DiscussionBan, MessageReport } from "../db/index.js"
 
+@ApplyOptions<Command.Options>({
+  name: "report",
+  description: "Report a message",
+  enabled: !!config.discussionModeration,
+})
 export class ReportCommand extends Command {
-  constructor(ctx: Command.LoaderContext, options: Command.Options) {
-    super(ctx, {
-      name: "report",
-      description: "Report a message",
-      enabled: !!config.discussionModeration,
-      ...options,
-    })
-  }
-
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
     registry.registerChatInputCommand((builder) =>
       builder
@@ -88,16 +84,12 @@ export class ReportCommand extends Command {
   }
 }
 
+@ApplyOptions<Command.Options>({
+  name: "accept",
+  description: "Accept the rules and get the discusser role",
+  enabled: !!config.discussionModeration,
+})
 export class AcceptCommand extends Command {
-  constructor(ctx: Command.LoaderContext, options: Command.Options) {
-    super(ctx, {
-      name: "accept",
-      description: "Accept the rules and get the discusser role",
-      enabled: !!config.discussionModeration,
-      ...options,
-    })
-  }
-
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
     registry.registerChatInputCommand((builder) =>
       builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild),
@@ -116,16 +108,12 @@ export class AcceptCommand extends Command {
   }
 }
 
+@ApplyOptions<Command.Options>({
+  name: "unaccept",
+  description: "Remove your discusser role",
+  enabled: !!config.discussionModeration,
+})
 export class UnacceptCommand extends Command {
-  constructor(ctx: Command.LoaderContext, options: Command.Options) {
-    super(ctx, {
-      name: "unaccept",
-      description: "Remove the discusser role",
-      enabled: !!config.discussionModeration,
-      ...options,
-    })
-  }
-
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
     registry.registerChatInputCommand((builder) =>
       builder
