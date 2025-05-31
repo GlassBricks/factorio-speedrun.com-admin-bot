@@ -75,9 +75,9 @@ function logReport(reportedMessage: Message, reporter: GuildMember, reason: stri
 async function createDbReport(reporter: GuildMember, reportedMessage: Message, reason: string | undefined) {
   const report = await MessageReport.create({
     messageId: reportedMessage.id,
+    reporterId: reporter.id,
     messageUrl: reportedMessage.url,
     authorId: reportedMessage.author.id,
-    reporterId: reporter.id,
     reason: reason,
   })
   const totalMessageReports = await MessageReport.count({
@@ -96,7 +96,7 @@ async function checkCanReport(reporter: GuildMember, reportedMessage: Message): 
   }
   if (moderationConfig.reportableChannels) {
     const channel = reportedMessage.channel
-    const channelId = ("parentId" in channel && channel.parentId) || channel.id
+    const channelId = (channel.isThread() && channel.parentId) || channel.id
     if (!moderationConfig.reportableChannels.includes(channelId)) {
       return "You cannot report messages in this channel."
     }

@@ -36,10 +36,15 @@ function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
     } = currentJson
 
     const current = { stable: curStable, experimental: curExperimental }
-    const lastKnownObj = { stable: lastKnownEntry.stable, experimental: lastKnownEntry.experimental }
+    const lastKnown = { stable: lastKnownEntry.stable, experimental: lastKnownEntry.experimental }
+
+    lastKnownEntry.experimental = current.experimental
+    lastKnownEntry.stable = current.stable
+    await lastKnownEntry.save()
+
     let changed = false
     for (const key of ["stable", "experimental"] as const) {
-      const oldVersion = lastKnownObj[key]
+      const oldVersion = lastKnown[key]
       const newVersion = current[key]
       if (newVersion !== oldVersion) {
         const oldVersionStr = oldVersion ?? "unknown"
@@ -56,12 +61,10 @@ function setup(client: Client<true>, config: AnnounceFactorioVersionConfig) {
         })
         changed = true
       }
-      lastKnownEntry[key] = newVersion
     }
     if (!changed) {
-      logger.info("No new versions")
+      logger.debug("No new versions")
     }
-    await lastKnownEntry.save()
   }
 
   async function doCheckLogging() {

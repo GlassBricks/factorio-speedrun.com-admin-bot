@@ -22,7 +22,7 @@ export async function handleInteractionErrors<T>(
       await interaction.reply({ content: error.message, flags: MessageFlags.Ephemeral })
       return
     }
-    logger.error("Unexpected error in command:", error)
+    logger.error("Unexpected error:", error)
     await interaction.reply({
       content: "An unexpected error occurred! Please report this to the admins/dev.",
       flags: MessageFlags.Ephemeral,
