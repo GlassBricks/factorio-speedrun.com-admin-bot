@@ -36,3 +36,7 @@ export function maybeUserError(message: string | undefined): void {
     throw new UserError(message)
   }
 }
+
+export function userError(message: string): never {
+  throw new UserError(message)
+}

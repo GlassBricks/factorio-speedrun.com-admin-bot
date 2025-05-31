@@ -11,7 +11,8 @@ import {
 import config from "../config-file.js"
 import { createLogger } from "../logger.js"
 import { DiscussionBan, MessageReport, sequelize } from "../db/index.js"
-import { handleInteractionErrors, maybeUserError } from "./error-handling.js"
+import { handleInteractionErrors, maybeUserError, userError } from "./error-handling.js"
+import * as crypto from "node:crypto"
 
 const moderationConfig = config.discussionModeration
 const logger = createLogger("[Discussion]")
@@ -65,10 +66,23 @@ async function doReport(reporter: GuildMember, reportedMessage: Message, reason:
   handleReportNonInteractive(reporter, reportedMessage, reason, totalMessageReports)
 }
 
+/**
+ * A simple hash function for IDs, to pseudo-anonymize them in logs.
+ */
+function hashId(id: string): string {
+  const salt = "apples > bananas"
+  const hash = crypto.createHash("sha256")
+  hash.update(id)
+  hash.update(salt)
+  return hash.digest("hex")
+}
+
 function logReport(reportedMessage: Message, reporter: GuildMember, reason: string | undefined) {
+  const userHash = hashId(reporter.id).substring(0, 8)
+  // only report user hash, don't report user ID in logs
   logBoth(
     reportedMessage.guild!,
-    `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by <@${reporter.id}>: ${reason || "No reason provided"}`,
+    `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by ${userHash}: ${reason || "No reason provided"}`,
   )
 }
 
@@ -108,8 +122,7 @@ async function checkCanReport(reporter: GuildMember, reportedMessage: Message): 
     return "You cannot report bot messages."
   }
 
-  const m = checkHasRequiredRoles(reporter, moderationConfig.reportRequiredRoles)
-  if (m) return m
+  checkHasRequiredRoles(reporter, moderationConfig.reportRequiredRoles)
 
   const existingReport = await MessageReport.findOne({
     where: {
@@ -178,7 +191,8 @@ async function checkCanAccept(interaction: CommandInteraction, member: GuildMemb
     return `You must run this command in <#${moderationConfig.acceptChannel}>.`
   }
 
-  return checkHasRequiredRoles(member, moderationConfig.acceptRequiredRoles)
+  checkHasRequiredRoles(member, moderationConfig.acceptRequiredRoles)
+  return
 }
 
 async function doUnaccept(member: GuildMember): Promise<void> {
@@ -217,7 +231,7 @@ function getBanMessage(ban: DiscussionBan): string {
   const expiresAtTimestamp = `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`
   return (
     `You have been temporarily banned from discussion${ban.reason ? ` due to ${ban.reason}` : ""}.\n` +
-    `You may re-join discussion by running /accept ${expiresAtTimestamp}.`
+    `You may re-join discussion by running /accept ${expiresAtTimestamp}`
   )
 }
 
@@ -293,14 +307,13 @@ async function logTempBan(reportedMessage: Message) {
   })
 }
 
-function checkHasRequiredRoles(member: GuildMember, requiredRoles: Snowflake[] | undefined): string | undefined {
-  if (!requiredRoles) return undefined
+function checkHasRequiredRoles(member: GuildMember, requiredRoles: Snowflake[] | undefined) {
+  if (!requiredRoles) return
   const hasRoles = requiredRoles.every((roleId) => member.roles.cache.has(roleId))
   if (!hasRoles) {
-    return (
+    userError(
       "You do not have the required roles to use this command: " +
-      requiredRoles.map((roleId) => `<@&${roleId}>`).join(", ")
+        requiredRoles.map((roleId) => `<@&${roleId}>`).join(", "),
     )
   }
-  return undefined
 }
