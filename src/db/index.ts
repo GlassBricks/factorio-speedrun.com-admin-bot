@@ -83,13 +83,16 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   declare submissionTime: Date
 
   @Column
-  declare messageChannelId?: Snowflake
+  declare messageChannelId: Snowflake
 
   @Column
-  declare messageId?: Snowflake
+  declare messageId: Snowflake
 
   @Column
-  declare messageVersion?: number
+  declare messageVersion: number
+
+  @Column
+  declare videoProof?: string
 }
 
 @Table

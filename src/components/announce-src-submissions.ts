@@ -12,7 +12,7 @@ import {
   User,
   Variable,
 } from "src-ts"
-import { SrcPlayer, SrcRun } from "../db/index.js"
+import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
 import {
   APIEmbedField,
   Client,
@@ -56,22 +56,10 @@ interface PlayerWithDbPlayer {
   srcPlayer: PlayerUser
 }
 
-interface RunWithDbRun {
-  dbRun: SrcRun
-  srcRun: RunWithEmbeds
-}
-
-type TwitchVideoType = "archive" | "highlight" | "upload" | "offline" | "unknown"
-
-interface TwitchVideoInfo {
-  type: "twitch"
-  url: string
-  twitchVideoType: TwitchVideoType
-}
-
-interface YoutubeVideoInfo {
-  type: "youtube"
-  url: string
+type VideoProvider = "twitch" | "youtube"
+const videoProviderConfigs: Record<VideoProvider, RegExp> = {
+  twitch: /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
+  youtube: /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
 }
 
 const TwitchVideoMessage = {
@@ -282,28 +270,34 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 
     logger.debug("Finding runs")
     const gameIds = config.games.map((x) => x.id)
-    const allRuns = await createDbRunsIfNeeded(await getRunsToProcess(gameIds))
-
+    const allRuns = await getRunsToProcess(gameIds)
+    logger.debug("Processing", allRuns.length, "runs")
     for (const run of allRuns) {
       await processRun(run, notifyChannel)
     }
     logger.info("Done")
   }
 
-  async function processRun({ srcRun, dbRun }: RunWithDbRun, notifyChannel: SendableChannels) {
+  async function processRun({ srcRun, dbRun }: RunWithMaybeDbRun, notifyChannel: SendableChannels) {
     logger.debug("Processing run:", srcRun.id)
 
     const status = statusStrToStatus(srcRun.status.status)
     const players = lazy(() => getOrAddPlayers(srcRun))
+    const currentVideoProof = findVideoUrl(srcRun)
 
     let message: Message | undefined
-    const isNewMessage = !dbRun.messageChannelId || !dbRun.messageId
-    if (isNewMessage) {
+    if (!dbRun) {
       message = await createRunMessage(srcRun, await players(), notifyChannel)
 
-      dbRun.messageId = message.id
-      dbRun.messageChannelId = message.channelId
-      dbRun.messageVersion = MESSAGE_VERSION
+      dbRun = new SrcRun({
+        runId: srcRun.id,
+        submissionTime: new Date(srcRun.submitted!),
+        lastStatus: SrcRunStatus.Unknown,
+        videoProof: currentVideoProof?.url,
+        messageId: message.id,
+        messageChannelId: message.channelId,
+        messageVersion: MESSAGE_VERSION,
+      })
     }
 
     launchFn(async () => {
@@ -312,22 +306,21 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         ? await getInitialMessage(srcRun, await players())
         : {}
 
-      const shouldUpdateAllComponents = isNewMessage || isOutdatedMessage
-
-      if (shouldUpdateAllComponents || dbRun.lastStatus !== status) {
+      if (isOutdatedMessage || dbRun.lastStatus !== status) {
         logger.trace("Updating run status", srcRun.id, "to", status)
         toEditParts.status = await getStatusText(srcRun)
         toEditParts.color = getRunColor(srcRun)
         dbRun.lastStatus = status
       }
-      if (shouldUpdateAllComponents || srcRun.status.status === "new") {
-        logger.trace("Updating video proof for run", srcRun.id)
-        toEditParts.videoProof = await getVideoProofText(srcRun)
+      if (isOutdatedMessage || dbRun.videoProof !== currentVideoProof?.url) {
+        logger.trace("Updating video proof", srcRun.id)
+        toEditParts.videoProof = await fetchVideoText(currentVideoProof)
+        dbRun.videoProof = currentVideoProof?.url
       }
 
       if (!isEmptyObject(toEditParts)) {
         logger.debug("Editing message", srcRun.id)
-        message ??= await fetchMessage(dbRun)
+        message ??= await fetchDiscordMessage(dbRun)
         if (message) {
           await editRunMessage(message, toEditParts)
         }
@@ -338,7 +331,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 
       launch(dbRun.save())
 
-      if ((shouldUpdateAllComponents || dbRun.lastStatus !== status) && srcRun.status.status === "verified") {
+      if ((isOutdatedMessage || dbRun.lastStatus !== status) && srcRun.status.status === "verified") {
         await recordPlayersHaveVerifiedRun(srcRun, await players(), message)
       }
     })
@@ -486,65 +479,61 @@ async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]>
   return result
 }
 
-async function createDbRunsIfNeeded(runs: RunWithMaybeDbRun[]): Promise<RunWithDbRun[]> {
-  const runsNeedingDbRun = runs.filter((x) => !x.dbRun)
-  if (runsNeedingDbRun.length === 0) return runs as RunWithDbRun[]
-  const dbRuns = await SrcRun.bulkCreate(
-    runsNeedingDbRun.map((x) => ({
-      runId: x.srcRun.id,
-      submissionTime: new Date(x.srcRun.submitted!),
-      lastStatus: statusStrToStatus(x.srcRun.status.status),
-    })),
-  )
-  const dbRunMap = new Map(dbRuns.map((x) => [x.runId, x]))
-  return runs.map((x) => ({ srcRun: x.srcRun, dbRun: x.dbRun ?? dbRunMap.get(x.srcRun.id)! }))
+interface VideoUrlInfo {
+  provider: VideoProvider
+  url: string
+  id: string
 }
 
-function findLinkMatching(run: RunWithEmbeds, regex: RegExp) {
-  const videoLinks = run.videos?.links
-  if (!videoLinks) return undefined
-  for (const link of videoLinks) {
-    const match = link.uri.match(regex)
+function findVideoUrlFromUrl(url: string): VideoUrlInfo | undefined {
+  for (const [provider, regex] of Object.entries(videoProviderConfigs)) {
+    const match = url.match(regex)
     if (match) {
-      return match[1]
+      return {
+        provider: provider as VideoProvider,
+        url,
+        id: match[1]!,
+      }
     }
   }
   return undefined
 }
-const twitchVideoProofRegex = /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/
-async function findTwitchVideo(run: RunWithEmbeds): Promise<TwitchVideoInfo | undefined> {
-  const videoId = findLinkMatching(run, twitchVideoProofRegex)
-  if (!videoId) return undefined
-  const video = await twitchClient
-    .getVideo(videoId)
-    .then((video) => video?.type ?? "offline")
-    .catch((e) => {
-      logger.error("Error fetching twitch video", e)
-      return "unknown" as const
-    })
-  return {
-    type: "twitch",
-    url: `https://www.twitch.tv/videos/${videoId}`,
-    twitchVideoType: video,
+
+function findVideoUrl(run: RunWithEmbeds): VideoUrlInfo | undefined {
+  const videoLinks = run.videos?.links
+  if (!videoLinks) return undefined
+
+  for (const link of videoLinks) {
+    const url = findVideoUrlFromUrl(link.uri)
+    if (url) return url
+  }
+  return undefined
+}
+
+async function fetchVideoMessageTemplate(url: VideoUrlInfo): Promise<string> {
+  if (url.provider === "twitch") {
+    const video = await twitchClient
+      .getVideo(url.id)
+      .then((video) => video?.type ?? "offline")
+      .catch((e) => {
+        logger.error("Error fetching twitch video", e)
+        return "unknown" as const
+      })
+
+    return TwitchVideoMessage[video]
+  } else if (url.provider === "youtube") {
+    return YoutubeVideoMessage
+  } else {
+    assertNever(url.provider)
   }
 }
 
-const youtubeVideoProofRegex = /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/
-// eslint-disable-next-line @typescript-eslint/require-await
-async function findYoutubeVideo(run: RunWithEmbeds): Promise<YoutubeVideoInfo | undefined> {
-  const videoId = findLinkMatching(run, youtubeVideoProofRegex)
-  if (!videoId) return undefined
-  return {
-    type: "youtube",
-    url: `https://www.youtube.com/watch?v=${videoId}`,
-  }
+async function fetchVideoText(url: VideoUrlInfo | undefined): Promise<string> {
+  if (url === undefined) return NoVideoMessage
+  return (await fetchVideoMessageTemplate(url)).replace("%url", url.url)
 }
 
-async function findVideo(run: RunWithEmbeds): Promise<TwitchVideoInfo | YoutubeVideoInfo | undefined> {
-  return (await findTwitchVideo(run)) ?? (await findYoutubeVideo(run))
-}
-
-async function fetchMessage(dbRun: SrcRun): Promise<Message | undefined> {
+async function fetchDiscordMessage(dbRun: SrcRun): Promise<Message | undefined> {
   if (!dbRun.messageChannelId || !dbRun.messageId) return undefined
   let message: Message | undefined
   try {
@@ -586,18 +575,6 @@ async function getStatusText(run: RunWithEmbeds) {
     return statusMessage.replace("%p", examinerName)
   }
   return statusMessage
-}
-
-async function getVideoProofText(run: RunWithEmbeds) {
-  const video = await findVideo(run)
-  if (!video) return NoVideoMessage
-  if (video.type === "twitch") {
-    return TwitchVideoMessage[video.twitchVideoType].replace("%url", video.url)
-  } else if (video.type === "youtube") {
-    return YoutubeVideoMessage.replace("%url", video.url)
-  } else {
-    assertNever(video)
-  }
 }
 
 async function getOrAddPlayers(run: RunWithEmbeds): Promise<PlayerWithDbPlayer[]> {
