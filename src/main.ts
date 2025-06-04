@@ -44,7 +44,7 @@ setUpVoteInitiateCommand(client, config.voteInitiateCommands)
 setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
 setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
 
-await sequelize.sync({ alter: true })
+await sequelize.sync()
 client.logger.info("Database synced")
 client.on("applicationCommandRegistriesRegistered", () => {
   for (const [name, command] of client.application?.commands.cache ?? []) {
