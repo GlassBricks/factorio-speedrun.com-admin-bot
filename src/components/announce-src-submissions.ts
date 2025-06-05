@@ -458,8 +458,10 @@ function findVideoUrl(run: RunWithEmbeds): VideoUrlInfo | undefined {
   return undefined
 }
 
-async function fetchVideoMessageTemplate(url: VideoUrlInfo): Promise<string> {
-  if (url.provider === "twitch") {
+async function fetchVideoMessageTemplate(url: VideoUrlInfo | undefined): Promise<string> {
+  if (url == undefined) {
+    return NoVideoMessage
+  } else if (url.provider === "twitch") {
     const video = await twitchClient
       .getVideo(url.id)
       .then((video) => video?.type ?? "offline")
@@ -477,8 +479,7 @@ async function fetchVideoMessageTemplate(url: VideoUrlInfo): Promise<string> {
 }
 
 async function fetchVideoText(url: VideoUrlInfo | undefined): Promise<string> {
-  if (url === undefined) return NoVideoMessage
-  return (await fetchVideoMessageTemplate(url)).replace("%url", url.url)
+  return (await fetchVideoMessageTemplate(url)).replace("%url", url?.url ?? "")
 }
 
 async function fetchDiscordMessage(dbRun: SrcRun): Promise<Message | undefined> {
