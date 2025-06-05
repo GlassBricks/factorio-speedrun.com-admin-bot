@@ -1,0 +1,298 @@
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, Events, InteractionContextType, MessageFlags, } from "discord.js";
+import { Command, container } from "@sapphire/framework";
+import { scheduleJob } from "node-schedule";
+import { createLogger } from "../logger.js";
+import { VoteInitiateMessage } from "../db/index.js";
+function messageLink(guildId, channelId, messageId) {
+    return `https://discord.com/channels/${guildId}/${channelId}/${messageId}`;
+}
+function notifyRoles(roles) {
+    return roles?.map((roleId) => `<@&${roleId}>\n`).join("") ?? "";
+}
+export class VoteInitiateCommandHandler {
+    config;
+    currentMessage;
+    logger;
+    constructor(config) {
+        this.config = config;
+        this.logger = createLogger(`VoteInitiateCommandHandler[${this.config.commandName}]`);
+    }
+    async onReady() {
+        const messageRecord = await VoteInitiateMessage.findOne({
+            where: { commandId: this.config.id, guildId: this.config.guildIds },
+        });
+        if (!messageRecord) {
+            this.logger.debug("No existing message.");
+            return;
+        }
+        const message = await this.findAssociatedMessage(messageRecord);
+        if (!message) {
+            this.logger.warn("Deleting invalid record.");
+            await messageRecord.destroy();
+            return;
+        }
+        this.logger.info("Found existing message, resuming.");
+        await this.startListening(messageRecord, message);
+    }
+    async chatInputRun(interaction) {
+        const current = await this.getCurrentIfValid();
+        if (current)
+            await this.updateAndMaybeResolve();
+        if (this.currentMessage) {
+            const current = this.currentMessage;
+            await interaction.reply({
+                content: this.config.alreadyRunningMessage +
+                    messageLink(current.message.guildId, current.message.channelId, current.message.id),
+                flags: MessageFlags.Ephemeral,
+            });
+            return;
+        }
+        const guild = interaction.guild;
+        if (!guild || !this.config.guildIds.includes(guild.id)) {
+            await interaction.reply({
+                content: "Invalid guild configuration. Please contact an administrator.",
+                flags: MessageFlags.Ephemeral,
+            });
+            return;
+        }
+        const channel = await guild.channels.fetch(this.config.postChannelId);
+        if (!channel || !channel.isTextBased()) {
+            await interaction.reply({
+                content: "Invalid channel configuration. Please contact an administrator.",
+                flags: MessageFlags.Ephemeral,
+            });
+            return;
+        }
+        // await this.createNewInitiationMessage(channel, interaction, guild)
+        if (await this.promptForConfirmation(interaction)) {
+            await this.createNewInitiationMessage(channel, interaction, guild);
+        }
+        else {
+            await interaction.deleteReply();
+        }
+    }
+    async promptForConfirmation(interaction) {
+        const yesButton = new ButtonBuilder().setCustomId("yes").setLabel("Create message").setStyle(ButtonStyle.Danger);
+        const noButton = new ButtonBuilder().setCustomId("no").setLabel("Cancel").setStyle(ButtonStyle.Secondary);
+        const row = new ActionRowBuilder().addComponents(yesButton, noButton);
+        const response = await interaction.reply({
+            content: this.formatMessage(this.config.confirmationMessage, undefined, new Date()),
+            components: [row],
+            flags: MessageFlags.Ephemeral,
+        });
+        try {
+            const confirmation = await response.awaitMessageComponent({
+                filter: (i) => i.user.id === interaction.user.id,
+                time: 60_000,
+            });
+            await confirmation.update({ components: [] });
+            return confirmation.customId === "yes";
+        }
+        catch {
+            return false;
+        }
+    }
+    async createNewInitiationMessage(channel, interaction, guild) {
+        this.logger.info("Creating new initiation message, from user id", interaction.user.id);
+        const messageText = this.formatMessage(this.config.postMessage, this.config.postNotifyRoles, new Date());
+        const message = await channel.send(messageText);
+        const record = await VoteInitiateMessage.create({
+            commandId: this.config.id,
+            guildId: guild.id,
+            postChannelId: channel.id,
+            postMessageId: message.id,
+        });
+        await interaction.editReply({
+            content: "Initiation message created: " + message.url,
+        });
+        await Promise.all([this.startListening(record, message), message.react(this.config.reaction)]);
+    }
+    async getCurrentIfValid() {
+        if (!this.currentMessage)
+            return undefined;
+        const message = await this.findAssociatedMessage(this.currentMessage.record);
+        if (!message) {
+            this.stopListening();
+            return undefined;
+        }
+        this.currentMessage.message = message;
+        return this.currentMessage;
+    }
+    async findAssociatedMessage(messageRecord) {
+        // if message is invalid for any reason, delete from db and return undefined
+        const guild = await container.client.guilds.fetch(messageRecord.guildId).catch(() => undefined);
+        if (!guild)
+            return;
+        if (messageRecord.postChannelId !== this.config.postChannelId) {
+            this.logger.warn("Post channel ID mismatch.");
+            return undefined;
+        }
+        const channel = await guild.channels.fetch(this.config.postChannelId);
+        if (!channel || !channel.isTextBased()) {
+            this.logger.warn("Post channel is not a valid text channel.");
+            return undefined;
+        }
+        const message = await channel.messages.fetch(messageRecord.postMessageId).catch(() => undefined);
+        if (!message) {
+            this.logger.warn("Message not found.");
+            return undefined;
+        }
+        return message;
+    }
+    async startListening(messageRecord, message) {
+        this.logger.info("Started listening for reactions");
+        const expiryJob = scheduleJob(this.getExpiryDate(message.createdAt), () => this.updateAndMaybeResolve());
+        this.currentMessage = {
+            expiryJob,
+            record: messageRecord,
+            message,
+        };
+        // do one update immediately on start
+        await this.updateAndMaybeResolve();
+    }
+    /** This may cause a pass. */
+    async onReactAdded(reaction) {
+        if (!this.isMyReaction(reaction))
+            return;
+        reaction = await reaction.fetch();
+        let numReacts = reaction?.count ?? 0;
+        this.logger.debug("React added, current count:", numReacts);
+        if (numReacts > 1 && reaction?.me) {
+            // remove bot's reaction
+            await reaction.users.remove(container.client.user.id);
+        }
+        if (reaction?.me)
+            numReacts--;
+        if (numReacts >= this.config.reactsRequired) {
+            await this.pass();
+        }
+    }
+    async onReactRemoved(reaction) {
+        if (!this.isMyReaction(reaction))
+            return;
+        reaction = await reaction.fetch();
+        const count = reaction.count;
+        this.logger.debug("React removed, current count:", count);
+        if (reaction.count == 0) {
+            await this.currentMessage?.message.react(this.config.reaction);
+        }
+    }
+    async updateAndMaybeResolve() {
+        if (!this.currentMessage)
+            return;
+        // for pass before checking for fail
+        const currentReact = this.currentMessage.message.reactions.resolve(this.config.reaction);
+        if (currentReact) {
+            await this.onReactAdded(currentReact);
+        }
+        if (!this.currentMessage)
+            return;
+        const message = this.currentMessage.message;
+        if (Date.now() >= this.getExpiryDate(message.createdAt).getTime()) {
+            await this.fail();
+        }
+    }
+    async pass() {
+        this.logger.info("Passed initiation");
+        const currentMessage = this.currentMessage;
+        this.stopListening();
+        if (currentMessage) {
+            await Promise.all([
+                currentMessage.message.channel.send(this.formatMessage(this.config.passedMessage, this.config.passedNotifyRoles, currentMessage.message.createdAt) +
+                    "\n\nOriginal message: " +
+                    messageLink(currentMessage.record.guildId, currentMessage.record.postChannelId, currentMessage.record.postMessageId)),
+            ]);
+        }
+    }
+    async fail() {
+        this.logger.info("Time expired, failing initiation");
+        const message = this.currentMessage?.message;
+        this.stopListening();
+        if (message) {
+            await message.edit(this.formatMessage(this.config.failedMessage, this.config.postNotifyRoles, message.createdAt));
+        }
+    }
+    isMyReaction(reaction) {
+        return (this.currentMessage !== undefined &&
+            reaction.message.id === this.currentMessage.message.id &&
+            reaction.emoji.name === this.config.reaction);
+    }
+    formatMessage(message, roles, messageCreateDate) {
+        const expiryDate = this.getExpiryDate(messageCreateDate);
+        const expiryDateRelative = `<t:${Math.floor(expiryDate.getTime() / 1000)}:R>`;
+        return (notifyRoles(roles) +
+            message
+                .replace("%n", this.config.reactsRequired.toString())
+                .replace("%h", this.config.durationHours.toString())
+                .replace("%c", `<#${this.config.postChannelId}>`)
+                .replace("%e", expiryDateRelative)
+                .replace("%r", this.config.reaction));
+    }
+    getExpiryDate(createdTime) {
+        return new Date(createdTime.getTime() + this.config.durationHours * 60 * 60 * 1000);
+    }
+    stopListening() {
+        const message = this.currentMessage;
+        if (message) {
+            this.currentMessage = undefined;
+            message.expiryJob?.cancel();
+            void message.record.destroy();
+        }
+    }
+    createCommandClass() {
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const handler = this;
+        return class extends Command {
+            constructor(context, options) {
+                super(context, {
+                    name: handler.config.commandName,
+                    description: handler.config.commandDescription,
+                    runIn: ["GUILD_TEXT"],
+                    ...options,
+                });
+            }
+            registerApplicationCommands(registry) {
+                registry.registerChatInputCommand((b) => b //
+                    .setName(handler.config.commandName)
+                    .setDescription(handler.config.commandDescription)
+                    .setDefaultMemberPermissions("0")
+                    .setContexts([InteractionContextType.Guild]), {
+                    guildIds: handler.config.guildIds,
+                    idHints: handler.config.idHints,
+                });
+            }
+            async chatInputRun(interaction) {
+                await handler.chatInputRun(interaction);
+            }
+        };
+    }
+}
+export function setUpVoteInitiateCommand(client, config) {
+    if (!config)
+        return;
+    const voteInitiateCommandHandlers = config.map((voteOptions) => new VoteInitiateCommandHandler(voteOptions)) ?? [];
+    for (const handler of voteInitiateCommandHandlers) {
+        const command = handler.createCommandClass();
+        void container.stores.loadPiece({
+            piece: command,
+            name: command.name,
+            store: "commands",
+        });
+    }
+    client.once(Events.ClientReady, () => {
+        for (const handler of voteInitiateCommandHandlers) {
+            handler.onReady().catch((e) => handler.logger.error("onLoad:", e));
+        }
+    });
+    client.on(Events.MessageReactionAdd, (reaction) => {
+        for (const handler of voteInitiateCommandHandlers) {
+            handler.onReactAdded(reaction).catch((e) => handler.logger.error("onReactAdded:", e));
+        }
+    });
+    client.on(Events.MessageReactionRemove, (reaction) => {
+        for (const handler of voteInitiateCommandHandlers) {
+            handler.onReactRemoved(reaction).catch((e) => handler.logger.error("onReactRemoved:", e));
+        }
+    });
+}
+//# sourceMappingURL=vote-initiate.js.map

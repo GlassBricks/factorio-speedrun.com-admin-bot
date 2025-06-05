@@ -1,0 +1,75 @@
+import { EmbedBuilder, Events } from "discord.js";
+import { scheduleJob } from "node-schedule";
+import { createLogger } from "../logger.js";
+import { KnownFactorioVersion } from "../db/index.js";
+export function setUpAnnounceFactorioVersion(client, config) {
+    if (config)
+        client.once(Events.ClientReady, (readyClient) => setup(readyClient, config));
+}
+function setup(client, config) {
+    const logger = createLogger("[AnnounceFactorioVersion]");
+    scheduleJob("checkFactorioVersion", config.cronSchedule, doCheckLogging)
+        // run once on startup
+        .invoke();
+    async function getChannel() {
+        const channel = await client.channels.fetch(config.channelId);
+        if (!channel || !channel.isTextBased() || !channel.isSendable()) {
+            throw new Error("Announce channel not found or not text-based!");
+        }
+        return channel;
+    }
+    async function send(message) {
+        const channel = await getChannel();
+        return await channel.send(message);
+    }
+    async function doCheck() {
+        logger.info("Checking for new Factorio versions");
+        const [currentJson, lastKnownEntry] = await Promise.all([fetchLatestRelease(), KnownFactorioVersion.get()]);
+        const { experimental: { alpha: curExperimental }, stable: { alpha: curStable }, } = currentJson;
+        const current = { stable: curStable, experimental: curExperimental };
+        const lastKnown = { stable: lastKnownEntry.stable, experimental: lastKnownEntry.experimental };
+        lastKnownEntry.experimental = current.experimental;
+        lastKnownEntry.stable = current.stable;
+        await lastKnownEntry.save();
+        let changed = false;
+        for (const key of ["stable", "experimental"]) {
+            const oldVersion = lastKnown[key];
+            const newVersion = current[key];
+            if (newVersion !== oldVersion) {
+                const oldVersionStr = oldVersion ?? "unknown";
+                // purple for stable, bluish for experimental
+                const color = key === "stable" ? "#b665d7" : "#43e7ff";
+                logger.info(`New ${key} version: ${oldVersionStr} -> ${newVersion}`);
+                await send({
+                    embeds: [
+                        new EmbedBuilder()
+                            .setTitle(`New ${key} version`)
+                            .setDescription(`${oldVersionStr} -> **${newVersion}**`)
+                            .setColor(color),
+                    ],
+                });
+                changed = true;
+            }
+        }
+        if (!changed) {
+            logger.debug("No new versions");
+        }
+    }
+    async function doCheckLogging() {
+        try {
+            await doCheck();
+        }
+        catch (error) {
+            logger.error("Failed to check Factorio version:", error);
+        }
+    }
+}
+const apiEndpoint = "https://factorio.com/api/latest-releases";
+async function fetchLatestRelease() {
+    const response = await fetch(apiEndpoint);
+    if (!response.ok) {
+        throw new Error(`Failed to fetch latest Factorio release: ${response.status} ${response.statusText}`);
+    }
+    return (await response.json());
+}
+//# sourceMappingURL=announce-factorio-version.js.map

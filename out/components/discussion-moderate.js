@@ -1,0 +1,245 @@
+import { MessageFlags, } from "discord.js";
+import config from "../config-file.js";
+import { createLogger } from "../logger.js";
+import { DiscussionBan, MessageReport, sequelize } from "../db/index.js";
+import { handleInteractionErrors, maybeUserError, userError } from "./error-handling.js";
+import * as crypto from "node:crypto";
+const moderationConfig = config.discussionModeration;
+const logger = createLogger("[Discussion]");
+function getLogChannel(guild) {
+    if (!moderationConfig)
+        return undefined;
+    const channel = guild.channels.cache.get(moderationConfig.logChannelId);
+    if (!channel || !channel.isTextBased() || !channel.isSendable()) {
+        logger.error("Log channel not found or not sendable! Please check configuration");
+        return undefined;
+    }
+    return channel;
+}
+function logErrorsToChannel(guild, promise) {
+    promise.catch((err) => {
+        logger.error("Unhandled error:", err);
+        void getLogChannel(guild)?.send("Unhandled error in report moderation! Please check the logs.");
+    });
+}
+function logBoth(guild, message) {
+    logger.info(message);
+    void getLogChannel(guild)
+        ?.send({ content: message, allowedMentions: { parse: [] } })
+        .catch((err) => logger.error("Failed to send log message:", err));
+}
+export async function report(interaction, reporter, reportedMessage, reason) {
+    return handleInteractionErrors(interaction, logger, () => doReport(reporter, reportedMessage, reason), () => interaction.reply({
+        content: "Your report was submitted:\n" + ` ${reportedMessage.url}: ${reason || "No reason provided"}`,
+        flags: MessageFlags.Ephemeral,
+    }));
+}
+async function doReport(reporter, reportedMessage, reason) {
+    maybeUserError(await checkCanReport(reporter, reportedMessage));
+    const { totalMessageReports } = await sequelize.transaction(() => createDbReport(reporter, reportedMessage, reason));
+    handleReportNonInteractive(reporter, reportedMessage, reason, totalMessageReports);
+}
+/**
+ * A simple hash function for IDs, to pseudo-anonymize them in logs.
+ */
+function hashId(id) {
+    const salt = "apples > bananas";
+    const hash = crypto.createHash("sha256");
+    hash.update(id);
+    hash.update(salt);
+    return hash.digest("hex");
+}
+function logReport(reportedMessage, reporter, reason) {
+    const userHash = hashId(reporter.id).substring(0, 8);
+    // only report user hash, don't report user ID in logs
+    logBoth(reportedMessage.guild, `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by ${userHash}: ${reason || "No reason provided"}`);
+}
+async function createDbReport(reporter, reportedMessage, reason) {
+    const report = await MessageReport.create({
+        messageId: reportedMessage.id,
+        reporterId: reporter.id,
+        messageUrl: reportedMessage.url,
+        authorId: reportedMessage.author.id,
+        reason: reason,
+    });
+    const totalMessageReports = await MessageReport.count({
+        where: { messageId: reportedMessage.id },
+    });
+    return {
+        report,
+        totalMessageReports,
+    };
+}
+const dev = process.env.NODE_ENV === "development";
+async function checkCanReport(reporter, reportedMessage) {
+    if (!moderationConfig) {
+        return "Reporting is currently disabled.";
+    }
+    if (moderationConfig.reportableChannels) {
+        const channel = reportedMessage.channel;
+        const channelId = (channel.isThread() && channel.parentId) || channel.id;
+        if (!moderationConfig.reportableChannels.includes(channelId)) {
+            return "You cannot report messages in this channel.";
+        }
+    }
+    if (!dev && reportedMessage.author.id === reporter.id) {
+        return "You cannot report your own messages.";
+    }
+    if (reportedMessage.author.bot) {
+        return "You cannot report bot messages.";
+    }
+    checkHasRequiredRoles(reporter, moderationConfig.reportRequiredRoles);
+    const existingReport = await MessageReport.findOne({
+        where: {
+            messageId: reportedMessage.id,
+            reporterId: reporter.id,
+        },
+    });
+    if (existingReport) {
+        return "You have already reported this message with the reason: " + (existingReport.reason || "No reason provided");
+    }
+    return;
+}
+export async function acceptCommand(interaction, member) {
+    return handleInteractionErrors(interaction, logger, () => doAccept(interaction, member), () => interaction.reply({
+        content: `You have been granted the <@&${moderationConfig.grantRoleId}> role!`,
+        flags: MessageFlags.Ephemeral,
+    }));
+}
+export async function unacceptCommand(interaction, member) {
+    return handleInteractionErrors(interaction, logger, () => doUnaccept(member), () => interaction.reply({
+        content: `Your <@&${moderationConfig.grantRoleId}> role was removed.`,
+        flags: MessageFlags.Ephemeral,
+    }));
+}
+async function doAccept(interaction, member) {
+    maybeUserError(await checkCanAccept(interaction, member));
+    await member.roles.add(moderationConfig.grantRoleId);
+    logAccept(member);
+}
+function logAccept(member) {
+    const message = `<@${member.id}> accepted the rules and was granted the <@&${moderationConfig.grantRoleId}> role.`;
+    // logBoth( member.guild, message )
+    logger.info(message);
+}
+async function checkCanAccept(interaction, member) {
+    if (!moderationConfig)
+        return "This feature is currently disabled.";
+    if (member.roles.cache.has(moderationConfig.grantRoleId)) {
+        return `You already have the <@&${moderationConfig.grantRoleId}> role!`;
+    }
+    const ban = await getCurrentBan(member);
+    if (ban && ban.expiresAt > new Date()) {
+        return getBanMessage(ban);
+    }
+    if (moderationConfig.acceptChannel && interaction.channelId !== moderationConfig.acceptChannel) {
+        return `You must run this command in <#${moderationConfig.acceptChannel}>.`;
+    }
+    checkHasRequiredRoles(member, moderationConfig.acceptRequiredRoles);
+    return;
+}
+async function doUnaccept(member) {
+    maybeUserError(checkCanUnaccept(member));
+    await member.roles.remove(moderationConfig.grantRoleId);
+    logUnaccept(member);
+}
+function logUnaccept(member) {
+    const message = `<@${member.id}> was removed from the <@&${moderationConfig.grantRoleId}> role.`;
+    // logBoth( member.guild, message )
+    logger.info(message);
+}
+function checkCanUnaccept(member) {
+    if (!moderationConfig)
+        return "This feature is currently disabled.";
+    if (!member.roles.cache.has(moderationConfig.grantRoleId)) {
+        return `You already don't have the <@&${moderationConfig.grantRoleId}> role!`;
+    }
+    return;
+}
+async function getCurrentBan(member) {
+    return await DiscussionBan.findOne({
+        where: {
+            userId: member.id,
+            guildId: member.guild.id,
+        },
+    });
+}
+function getBanMessage(ban) {
+    const expiresAt = ban.expiresAt;
+    const expiresAtTimestamp = `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`;
+    return (`You have been temporarily banned from discussion${ban.reason ? ` due to ${ban.reason}` : ""}.\n` +
+        `You may re-join discussion by running /accept ${expiresAtTimestamp}`);
+}
+function handleReportNonInteractive(reporter, reportedMessage, reportReason, totalMessageReports) {
+    const guild = reporter.guild;
+    logReport(reportedMessage, reporter, reportReason);
+    if (totalMessageReports == moderationConfig.reportsTempBanThreshold) {
+        logErrorsToChannel(guild, createTempBanFromMessageReports(reportedMessage));
+        logErrorsToChannel(guild, logTempBan(reportedMessage));
+    }
+}
+async function createTempBanFromMessageReports(reportedMessage) {
+    const author = reportedMessage.member;
+    if (!author)
+        return;
+    const guild = reportedMessage.guild;
+    const discusserRoleId = moderationConfig.grantRoleId;
+    const tempBanDays = moderationConfig.tempBanDays;
+    const now = new Date();
+    const expiresAt = new Date(now.getTime() + tempBanDays * 24 * 60 * 60 * 1000);
+    let ban = await getCurrentBan(author);
+    const banReason = `${moderationConfig.reportsTempBanThreshold} reports on ${reportedMessage.url}`;
+    if (ban && ban.expiresAt > now) {
+        // Renew ban
+        ban.expiresAt = ban.expiresAt > expiresAt ? ban.expiresAt : expiresAt;
+        ban.bannedAt = now;
+        ban.reason = banReason;
+    }
+    else {
+        // New ban
+        ban = new DiscussionBan({
+            userId: author.id,
+            guildId: guild.id,
+            bannedAt: now,
+            expiresAt,
+            reason: banReason,
+        });
+    }
+    await ban.save();
+    if (discusserRoleId && author.roles.cache.has(discusserRoleId)) {
+        await author.roles.remove(discusserRoleId, "Temp ban due to message reports");
+    }
+    await author.send(getBanMessage(ban));
+}
+async function logTempBan(reportedMessage) {
+    const totalMessageReports = moderationConfig.reportsTempBanThreshold;
+    const reporters = await MessageReport.findAll({ where: { messageId: reportedMessage.id } });
+    logger.info(`Temp banning <@${reportedMessage.author.id}> for ${totalMessageReports} message reports on ${reportedMessage.url}.`);
+    await getLogChannel(reportedMessage.guild)?.send({
+        content: (moderationConfig.tempBanNotify ?? []).map((roleId) => `<@&${roleId}>`).join(" "),
+        embeds: [
+            {
+                title: `Temp ban!`,
+                description: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported ${totalMessageReports} times:`,
+                fields: [
+                    {
+                        name: "Reports",
+                        value: reporters
+                            .map((report) => `<@${report.reporterId}>: ${report.reason || "No reason provided"}`)
+                            .join("\n"),
+                    },
+                ],
+            },
+        ],
+    });
+}
+function checkHasRequiredRoles(member, requiredRoles) {
+    if (!requiredRoles)
+        return;
+    const hasRoles = requiredRoles.every((roleId) => member.roles.cache.has(roleId));
+    if (!hasRoles) {
+        userError("You do not have the required roles to use this command: " +
+            requiredRoles.map((roleId) => `<@&${roleId}>`).join(", "));
+    }
+}
+//# sourceMappingURL=discussion-moderate.js.map
