@@ -38,16 +38,6 @@ export class KnownFactorioVersion extends Model<
   }
 }
 
-@Table
-export class SrcPlayer extends Model<InferAttributes<SrcPlayer>, InferCreationAttributes<SrcPlayer>> {
-  @PrimaryKey
-  @Column
-  declare userId: string
-
-  @Column({ defaultValue: false })
-  declare hasVerifiedRun: boolean
-}
-
 export enum SrcRunStatus {
   New = 0,
   Verified = 1,
@@ -147,5 +137,5 @@ export const sequelize = new Sequelize({
   dialect: "sqlite",
   storage: dev ? ":memory:" : "database.sqlite",
   // storage: "database.sqlite",
-  models: [VoteInitiateMessage, KnownFactorioVersion, SrcPlayer, SrcRun, AnnounceMessage, MessageReport, DiscussionBan],
+  models: [VoteInitiateMessage, KnownFactorioVersion, SrcRun, AnnounceMessage, MessageReport, DiscussionBan],
 })

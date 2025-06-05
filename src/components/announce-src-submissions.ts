@@ -7,12 +7,11 @@ import {
   getUser,
   Leaderboard,
   Player,
-  PlayerUser,
   Run,
   User,
   Variable,
 } from "src-ts"
-import { SrcPlayer, SrcRun, SrcRunStatus } from "../db/index.js"
+import { SrcRun, SrcRunStatus } from "../db/index.js"
 import {
   APIEmbedField,
   Client,
@@ -20,7 +19,6 @@ import {
   EmbedBuilder,
   Events,
   HexColorString,
-  lazy,
   Message,
   SendableChannels,
 } from "discord.js"
@@ -51,11 +49,6 @@ const MESSAGE_VERSION = 11
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
 
-interface PlayerWithDbPlayer {
-  dbPlayer: SrcPlayer
-  srcPlayer: PlayerUser
-}
-
 type VideoProvider = "twitch" | "youtube"
 const videoProviderConfigs: Record<VideoProvider, RegExp> = {
   twitch: /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
@@ -73,7 +66,6 @@ const TwitchVideoMessage = {
 const YoutubeVideoMessage = "[YouTube video](%url)"
 const NoVideoMessage = "None found"
 
-// type RunStatus = "new" | "verified" | "rejected" | "selfVerified"
 enum RunStatus {
   New = "New",
   Verified = "Verified",
@@ -89,13 +81,9 @@ const StatusMessage: Record<RunStatus, string> = {
 }
 
 const StatusColor: Record<RunStatus, HexColorString> = {
-  // yellowish
   [RunStatus.New]: "#ffee20",
-  // green
   [RunStatus.Verified]: "#20ff20",
-  // red
   [RunStatus.Rejected]: "#ff5050",
-  // blue-green
   [RunStatus.SelfVerified]: "#75ff94",
 }
 
@@ -151,15 +139,13 @@ interface RunMessageParts {
  *
  * That will be filled in later in `processRun`
  */
-async function getInitialMessage(run: RunWithEmbeds, players: PlayerWithDbPlayer[]): Promise<RunMessageParts> {
+async function getInitialMessage(gameIds: string[], run: RunWithEmbeds): Promise<RunMessageParts> {
   const gameData = await getGameCached(run.game)
   const game = gameData.game
   const leaderboard = await getActualLeaderboard(gameData, run)
   const category = leaderboard && (Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data)
 
-  const firstTimeSubmissionPlayers = players
-    .filter((x) => !x.dbPlayer.hasVerifiedRun)
-    .map((x) => x.srcPlayer.names.international)
+  const firstTimeSubmissionPlayers: string[] = await findNewPlayers(gameIds, run.players.data)
 
   const place = leaderboard && findPlaceInLeaderboard(leaderboard, run)
   function getPlayerNamesStr(players: Player[]): string {
@@ -189,6 +175,30 @@ async function getInitialMessage(run: RunWithEmbeds, players: PlayerWithDbPlayer
     videoProof: "",
     status: "",
   }
+}
+
+async function isNewSubmitter(gameIds: string[], playerId: string): Promise<boolean> {
+  for (const gameId of gameIds) {
+    const run = await getAllRuns({
+      game: gameId,
+      user: playerId,
+      status: "verified",
+      max: 1,
+    })
+    if (run.length > 0) return false
+  }
+  return true
+}
+
+async function findNewPlayers(gameIds: string[], players: Player[]): Promise<string[]> {
+  const result = []
+  for (const player of players) {
+    if (player.rel !== "user") continue
+    if (await isNewSubmitter(gameIds, player.id)) {
+      result.push(player.names.international)
+    }
+  }
+  return result
 }
 
 function getEmbedFields(parts: Partial<RunMessageParts>, fromExisting?: APIEmbedField[]): APIEmbedField[] {
@@ -257,9 +267,10 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     // Run once on startup
     .invoke()
 
+  const gameIds = config.games.map((x) => x.id)
+
   async function run() {
     logger.info("Starting announce SRC submissions")
-    await maybeInitSrcPlayers()
     clearCaches()
 
     const notifyChannel = await client.channels.fetch(config.channelId)
@@ -269,7 +280,6 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     }
 
     logger.debug("Finding runs")
-    const gameIds = config.games.map((x) => x.id)
     const allRuns = await getRunsToProcess(gameIds)
     logger.debug("Processing", allRuns.length, "runs")
     for (const run of allRuns) {
@@ -282,12 +292,11 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     logger.debug("Processing run:", srcRun.id)
 
     const status = statusStrToStatus(srcRun.status.status)
-    const players = lazy(() => getOrAddPlayers(srcRun))
     const currentVideoProof = findVideoUrl(srcRun)
 
     let message: Message | undefined
     if (!dbRun) {
-      message = await createRunMessage(srcRun, await players(), notifyChannel)
+      message = await createRunMessage(srcRun, notifyChannel)
 
       dbRun = new SrcRun({
         runId: srcRun.id,
@@ -302,11 +311,10 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
 
     launchFn(async () => {
       const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION
-      const toEditParts: Partial<RunMessageParts> = isOutdatedMessage
-        ? await getInitialMessage(srcRun, await players())
-        : {}
+      const toEditParts: Partial<RunMessageParts> = isOutdatedMessage ? await getInitialMessage(gameIds, srcRun) : {}
 
-      if (isOutdatedMessage || dbRun.lastStatus !== status) {
+      const statusChanged = dbRun.lastStatus !== status
+      if (isOutdatedMessage || statusChanged) {
         logger.trace("Updating run status", srcRun.id, "to", status)
         toEditParts.status = await getStatusText(srcRun)
         toEditParts.color = getRunColor(srcRun)
@@ -330,10 +338,6 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       }
 
       launch(dbRun.save())
-
-      if ((isOutdatedMessage || dbRun.lastStatus !== status) && srcRun.status.status === "verified") {
-        await recordPlayersHaveVerifiedRun(srcRun, await players(), message)
-      }
     })
   }
 
@@ -348,10 +352,10 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     return builder
   }
 
-  async function createRunMessage(run: RunWithEmbeds, players: PlayerWithDbPlayer[], notifyChannel: SendableChannels) {
+  async function createRunMessage(run: RunWithEmbeds, notifyChannel: SendableChannels) {
     logger.info("Creating run message", run.id)
 
-    const parts = await getInitialMessage(run, players)
+    const parts = await getInitialMessage(gameIds, run)
     return await notifyChannel.send({ embeds: [createEmbed(parts)] })
   }
 
@@ -361,62 +365,6 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       embeds: [createEmbed(parts, message.embeds[0])],
       flags: "0",
     })
-  }
-
-  async function recordPlayersHaveVerifiedRun(
-    run: RunWithEmbeds,
-    players: PlayerWithDbPlayer[],
-    message: Message | undefined,
-  ) {
-    if (run.status.status !== "verified") return
-    const newPlayers = players.filter((x) => !x.dbPlayer.hasVerifiedRun)
-    if (newPlayers.length === 0) return
-    await Promise.all(
-      newPlayers.map(({ dbPlayer }) => {
-        dbPlayer.hasVerifiedRun = true
-        return dbPlayer.save()
-      }),
-    )
-
-    if (config.announceNewPlayersMessage && message) {
-      try {
-        const playerNames = newPlayers.map((x) => x.srcPlayer.names.international).join(", ")
-        const messageContent = config.announceNewPlayersMessage.message.replace("%p", playerNames)
-        await message.reply({
-          content: messageContent,
-          allowedMentions: config.announceNewPlayersMessage.allowedMentions,
-        })
-      } catch (e) {
-        logger.error(e)
-      }
-    }
-  }
-
-  async function maybeInitSrcPlayers() {
-    if (await SrcPlayer.count()) return
-    if (process.env.NODE_ENV === "development") return
-    logger.info(`Initializing table ${SrcPlayer.tableName}`)
-    const players = new Set<string>()
-    const hasVerifiedRuns = new Set<string>()
-    for (const { id: gameId } of config.games) {
-      const runs = await getAllRuns({ game: gameId, max: 200 })
-      for (const run of runs) {
-        const verified = run.status.status === "verified"
-        for (const player of run.players) {
-          if (player.rel === "user") {
-            players.add(player.id)
-            if (verified) hasVerifiedRuns.add(player.id)
-          }
-        }
-      }
-    }
-    logger.info(`Found ${players.size} users`)
-    await SrcPlayer.bulkCreate(
-      Array.from(players).map((id) => ({
-        userId: id,
-        hasVerifiedRun: hasVerifiedRuns.has(id),
-      })),
-    )
   }
 }
 
@@ -462,7 +410,7 @@ async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]>
 
   const resultMap = new Map<string, RunWithMaybeDbRun>()
   for (const run of allRuns) {
-    if (!run.submitted) continue // ignore very old runs without submission time for now
+    if (!run.submitted) continue
     if (resultMap.has(run.id)) continue
     const dbRun = allDbRunsMap.get(run.id)
 
@@ -575,26 +523,6 @@ async function getStatusText(run: RunWithEmbeds) {
     return statusMessage.replace("%p", examinerName)
   }
   return statusMessage
-}
-
-async function getOrAddPlayers(run: RunWithEmbeds): Promise<PlayerWithDbPlayer[]> {
-  const playerUser: PlayerUser[] = run.players.data.filter((x): x is Player & { rel: "user" } => x.rel === "user")
-  const players = await SrcPlayer.findAll({ where: { userId: playerUser.map((x) => x.id) } })
-  const newPlayerUsers = playerUser.filter((x) => !players.some((p) => p.userId === x.id))
-  if (newPlayerUsers.length > 0) {
-    const newPlayers = await SrcPlayer.bulkCreate(
-      newPlayerUsers.map((x) => ({
-        userId: x.id,
-        hasVerifiedRun: false,
-      })),
-      { returning: true },
-    )
-    players.push(...newPlayers)
-  }
-  return players.map((player) => ({
-    dbPlayer: player,
-    srcPlayer: playerUser.find((x) => x.id === player.userId)!,
-  }))
 }
 
 async function logErrors<T>(promise: Promise<T>): Promise<T | undefined> {
