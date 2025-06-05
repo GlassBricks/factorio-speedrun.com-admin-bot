@@ -44,7 +44,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 11
+const MESSAGE_VERSION = 12
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
