@@ -56,8 +56,8 @@ const videoProviderConfigs: Record<VideoProvider, RegExp> = {
 }
 
 const TwitchVideoMessage = {
-  archive: "[Twitch VOD](%url) (not a permanent video!!)",
-  highlight: "[Twitch highlight](%url)",
+  archive: "[Twitch VOD](%url) ⚠️ **Not permanent!!**",
+  highlight: "[Twitch highlight](%url) ⚠️ **Not permanent!!**",
   upload: "[Uploaded Twitch video](%url)",
   offline: "[Offline Twitch video](%url) (Twitch returned 404)",
   unknown: "[Twitch video](%url), status unknown. (Fix me @GlassBricks !)",
@@ -145,8 +145,6 @@ async function getInitialMessage(gameIds: string[], run: RunWithEmbeds): Promise
   const leaderboard = await getActualLeaderboard(gameData, run)
   const category = leaderboard && (Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data)
 
-  const firstTimeSubmissionPlayers: string[] = await findNewPlayers(gameIds, run.players.data)
-
   const place = leaderboard && findPlaceInLeaderboard(leaderboard, run)
   function getPlayerNamesStr(players: Player[]): string {
     return players
@@ -168,10 +166,10 @@ async function getInitialMessage(gameIds: string[], run: RunWithEmbeds): Promise
     timestamp: new Date(run.submitted!),
     color: StatusColor[getRunStatus(run)],
 
-    firstTimeSubmissionPlayers,
     isChallengerRun:
       category !== undefined && place !== undefined && isChallengerRun(leaderboard, run, category, place),
     place: place ?? -1,
+    firstTimeSubmissionPlayers: [],
     videoProof: "",
     status: "",
   }
@@ -179,12 +177,14 @@ async function getInitialMessage(gameIds: string[], run: RunWithEmbeds): Promise
 
 async function isNewSubmitter(gameIds: string[], playerId: string): Promise<boolean> {
   for (const gameId of gameIds) {
-    const run = await getAllRuns({
-      game: gameId,
-      user: playerId,
-      status: "verified",
-      max: 1,
-    })
+    const run = await getAllRuns(
+      {
+        game: gameId,
+        user: playerId,
+        status: "verified",
+      },
+      { max: 1 },
+    )
     if (run.length > 0) return false
   }
   return true
@@ -295,35 +295,43 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     const currentVideoProof = findVideoUrl(srcRun)
 
     let message: Message | undefined
+    const isNewMessage = !dbRun
     if (!dbRun) {
       message = await createRunMessage(srcRun, notifyChannel)
 
       dbRun = new SrcRun({
         runId: srcRun.id,
         submissionTime: new Date(srcRun.submitted!),
-        lastStatus: SrcRunStatus.Unknown,
-        videoProof: currentVideoProof?.url,
         messageId: message.id,
         messageChannelId: message.channelId,
         messageVersion: MESSAGE_VERSION,
+        lastStatus: SrcRunStatus.Unknown,
+        videoProof: currentVideoProof?.url,
       })
     }
 
     launchFn(async () => {
       const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION
       const toEditParts: Partial<RunMessageParts> = isOutdatedMessage ? await getInitialMessage(gameIds, srcRun) : {}
+      const editAllParts = isOutdatedMessage || isNewMessage
 
       const statusChanged = dbRun.lastStatus !== status
-      if (isOutdatedMessage || statusChanged) {
+      if (editAllParts || statusChanged) {
         logger.trace("Updating run status", srcRun.id, "to", status)
         toEditParts.status = await getStatusText(srcRun)
         toEditParts.color = getRunColor(srcRun)
         dbRun.lastStatus = status
       }
-      if (isOutdatedMessage || dbRun.videoProof !== currentVideoProof?.url) {
+      if (editAllParts || dbRun.videoProof !== currentVideoProof?.url) {
         logger.trace("Updating video proof", srcRun.id)
         toEditParts.videoProof = await fetchVideoText(currentVideoProof)
         dbRun.videoProof = currentVideoProof?.url
+      }
+      if (editAllParts) {
+        const newPlayers = await findNewPlayers(gameIds, srcRun.players.data)
+        if (newPlayers.length > 0) {
+          toEditParts.firstTimeSubmissionPlayers = newPlayers
+        }
       }
 
       if (!isEmptyObject(toEditParts)) {
