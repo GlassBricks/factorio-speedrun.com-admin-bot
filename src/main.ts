@@ -2,7 +2,7 @@ import { Events, GatewayIntentBits, Partials } from "discord.js"
 import { config as dotEnvConfig } from "dotenv"
 import { LogLevel, SapphireClient } from "@sapphire/framework"
 import "@sapphire/plugin-logger/register"
-import { sequelize } from "./db/index.js"
+import { syncDatabase } from "./db/migrate.js"
 
 import config from "./config-file.js"
 import { setUpVoteInitiateCommand } from "./components/vote-initiate.js"
@@ -44,8 +44,7 @@ setUpVoteInitiateCommand(client, config.voteInitiateCommands)
 setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
 setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
 
-await sequelize.sync()
-client.logger.info("Database synced")
+await syncDatabase(client.logger)
 client.on("applicationCommandRegistriesRegistered", () => {
   for (const [name, command] of client.application?.commands.cache ?? []) {
     console.log(name, command.name)

@@ -9,7 +9,11 @@
     "watch": "tsc -w",
     "lint": "eslint && prettier --check .",
     "lint:fix": "eslint --fix && prettier --write .",
-    "check": "npm run lint && tsc --noEmit"
+    "check": "npm run lint && tsc --noEmit",
+    "migrate": "sequelize-cli db:migrate",
+    "migrate:undo": "sequelize-cli db:migrate:undo",
+    "migrate:undo:all": "sequelize-cli db:migrate:undo:all",
+    "migrate:status": "sequelize-cli db:migrate:status"
   },
   "type": "module",
   "dependencies": {
@@ -33,6 +37,7 @@
     "discord-api-types": "^0.38.8",
     "eslint": "^9.27.0",
     "prettier": "^3.5.3",
+    "sequelize-cli": "^6.6.3",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.33.0"
   },
