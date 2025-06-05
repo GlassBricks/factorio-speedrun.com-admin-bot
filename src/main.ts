@@ -37,17 +37,18 @@ if (config.botName) {
   })
 }
 
-for (const a of config.announcementRelay ?? []) {
-  setUpAnnouncementRelay(client, a)
-}
-setUpVoteInitiateCommand(client, config.voteInitiateCommands)
-setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
-setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
+// for (const a of config.announcementRelay ?? []) {
+//   setUpAnnouncementRelay(client, a)
+// }
+// setUpVoteInitiateCommand(client, config.voteInitiateCommands)
+// setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
+// setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
 
 await syncDatabase(client.logger)
 client.on("applicationCommandRegistriesRegistered", () => {
   for (const [name, command] of client.application?.commands.cache ?? []) {
     console.log(name, command.name)
+    // void command.delete()
   }
 })
 await client.login(process.env.DISCORD_TOKEN)

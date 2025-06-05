@@ -82,7 +82,7 @@ export interface DiscussionModerationConfig {
   grantRoleId: Snowflake
 
   reportRequiredRoles?: Snowflake[]
-  reportableChannels: Snowflake[]
+  reportPeriodHours: number
   reportsTempBanThreshold: number
 
   tempBanDays: number

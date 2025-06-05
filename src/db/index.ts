@@ -1,6 +1,6 @@
-import { Column, CreatedAt, Index, Model, PrimaryKey, Sequelize, Table } from "sequelize-typescript"
+import { AutoIncrement, Column, CreatedAt, Index, Model, PrimaryKey, Sequelize, Table } from "sequelize-typescript"
 import { Snowflake } from "discord.js"
-import { CreationOptional, InferAttributes, InferCreationAttributes } from "sequelize"
+import { CreationOptional, DataTypes, InferAttributes, InferCreationAttributes } from "sequelize"
 
 // for vote-initiate command
 @Table({ paranoid: true })
@@ -88,24 +88,20 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
 @Table
 export class MessageReport extends Model<InferAttributes<MessageReport>, InferCreationAttributes<MessageReport>> {
   @PrimaryKey
+  @AutoIncrement
+  @Column(DataTypes.INTEGER)
+  declare id: CreationOptional<number>
+
   @Index
   @Column
-  declare messageId: Snowflake
+  declare userId: Snowflake
 
-  @PrimaryKey
   @Index
   @Column
   declare reporterId: Snowflake
 
   @Column
-  declare messageUrl: string
-
-  @Index
-  @Column
-  declare authorId: Snowflake
-
-  @Column
-  declare reason?: string
+  declare reason: string
 
   @CreatedAt
   @Index

@@ -109,7 +109,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
     grantRoleId: Roles.Discusser,
 
     reportRequiredRoles: [Roles.Discusser],
-    reportableChannels: [Channels.Discussion, Channels.DiscussionAccept],
+    reportPeriodHours: 24 * 5,
     reportsTempBanThreshold: 3,
 
     tempBanDays: 3,

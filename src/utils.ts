@@ -104,12 +104,3 @@ export function assertNever(value: never): never {
   console.error("Unexpected value: ", value)
   throw new Error(`Unexpected value: ${JSON.stringify(value)}`)
 }
-
-export async function getMessageFromLink(client: Client<true>, link: string): Promise<Message | undefined> {
-  const [, guildId, channelId, messageId] = /https:\/\/discord\.com\/channels\/(\d+)\/(\d+)\/(\d+)/.exec(link) || []
-  if (!guildId || !channelId || !messageId) return undefined
-  const guild = await client.guilds.fetch(guildId)
-  const channel = await guild.channels.fetch(channelId)
-  if (!channel || !channel.isTextBased()) return undefined
-  return channel.messages.fetch(messageId)
-}
