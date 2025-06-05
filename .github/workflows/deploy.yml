@@ -1,0 +1,38 @@
+name: Deploy to Branch
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - run: npm ci
+      - run: npm run build
+
+      - run: |
+          git config user.name "GitHub Actions Bot"
+          git config user.email "<>"
+
+      - run: git checkout -b deploy
+
+      - name: Force add out directory
+        run: |
+          git add -f out/
+          git add .
+
+      - name: Commit and force push
+        run: |
+          git commit -m "Deploy from main branch - $(date -u +"%Y-%m-%d %H:%M:%S UTC")" || echo "No changes to commit"
+          git push origin deploy --force
