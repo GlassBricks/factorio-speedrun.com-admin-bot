@@ -11,7 +11,7 @@ const Channels = {
   SrcDiscussionContact: "1313675268392489053",
   FeedbackRelay: "1322336566705655838",
   RunAdministration: "1201292109332885584",
-  DiscussionAccept: "1374810532581871737",
+  DiscussionRules: "1374810532581871737",
   Discussion: "1377325180199632906",
 }
 
@@ -104,13 +104,14 @@ If %n %r reacts are received %e, ` + reelectDescription,
   ],
   discussionModeration: {
     logChannelId: Channels.TranscriptsAndLogs,
+
     acceptRequiredRoles: [Roles.Speedrunner],
-    rulesChannel: Channels.DiscussionAccept,
+    rulesChannel: Channels.DiscussionRules,
     confirmationMessage: "I confirm I have read the rules, will follow them, and will report any violations I observe",
     grantRoleId: Roles.Discusser,
 
     reportRequiredRoles: [Roles.Discusser],
-    reportableChannels: [Channels.Discussion, Channels.DiscussionAccept],
+    reportableChannels: [Channels.Discussion, Channels.DiscussionRules],
     reportsTempBanThreshold: 3,
 
     tempBanDays: 3,
