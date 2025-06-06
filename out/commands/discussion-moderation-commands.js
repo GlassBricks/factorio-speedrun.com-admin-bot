@@ -79,7 +79,11 @@ ReportCommand = __decorate([
 export { ReportCommand };
 let AcceptCommand = class AcceptCommand extends Command {
     registerApplicationCommands(registry) {
-        registry.registerChatInputCommand((builder) => builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild), {
+        registry.registerChatInputCommand((builder) => builder
+            .setName(this.name)
+            .setDescription(this.description)
+            .setContexts(InteractionContextType.Guild)
+            .addStringOption((option) => option.setName("message").setDescription("Confirmation message").setRequired(true)), {
             idHints: config.discussionModeration?.acceptIdHint,
         });
     }
@@ -90,12 +94,13 @@ let AcceptCommand = class AcceptCommand extends Command {
                 flags: MessageFlags.Ephemeral,
             });
         }
-        return acceptCommand(interaction, interaction.member);
+        const message = interaction.options.getString("message", true);
+        return acceptCommand(interaction, interaction.member, message);
     }
 };
 AcceptCommand = __decorate([
     ApplyOptions({
-        name: "accept",
+        name: "accept-discussion-rules",
         description: "Accept the rules and get the discusser role",
         enabled: !!config.discussionModeration,
     })
@@ -123,7 +128,7 @@ let UnacceptCommand = class UnacceptCommand extends Command {
 };
 UnacceptCommand = __decorate([
     ApplyOptions({
-        name: "unaccept",
+        name: "unaccept-discussion-rules",
         description: "Remove your discusser role",
         enabled: !!config.discussionModeration,
     })
@@ -147,6 +152,10 @@ let DiscussAdminCommand = class DiscussAdminCommand extends Subcommand {
             .setName("ban-status")
             .setDescription("Show ban status of a user")
             .addUserOption((opt) => opt.setName("user").setDescription("User to check ban status for").setRequired(true)))
+            .addSubcommand((sub) => sub
+            .setName("unban")
+            .setDescription("Unban a user")
+            .addUserOption((opt) => opt.setName("user").setDescription("User to unban").setRequired(true)))
             .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages), {
             idHints: config.discussionModeration?.discussAdminIdHint,
         });
@@ -211,6 +220,7 @@ let DiscussAdminCommand = class DiscussAdminCommand extends Subcommand {
             const reason = ban.reason ? `Reason: ${ban.reason}` : "No reason provided";
             return interaction.reply({
                 content: `<@${user.id}> is banned until ${expiresAt}. ${reason}`,
+                flags: MessageFlags.Ephemeral,
             });
         });
     }

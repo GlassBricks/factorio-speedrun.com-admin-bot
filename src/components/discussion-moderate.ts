@@ -137,11 +137,11 @@ async function checkCanReport(reporter: GuildMember, reportedMessage: Message): 
   return
 }
 
-export async function acceptCommand(interaction: CommandInteraction, member: GuildMember) {
+export async function acceptCommand(interaction: CommandInteraction, member: GuildMember, message: string) {
   return handleInteractionErrors(
     interaction,
     logger,
-    () => doAccept(interaction, member),
+    () => doAccept(interaction, member, message),
     () =>
       interaction.reply({
         content: `You have been granted the <@&${moderationConfig!.grantRoleId}> role!`,
@@ -163,8 +163,8 @@ export async function unacceptCommand(interaction: CommandInteraction, member: G
   )
 }
 
-async function doAccept(interaction: CommandInteraction, member: GuildMember): Promise<void> {
-  maybeUserError(await checkCanAccept(interaction, member))
+async function doAccept(interaction: CommandInteraction, member: GuildMember, message: string): Promise<void> {
+  maybeUserError(await checkCanAccept(member, message))
   await member.roles.add(moderationConfig!.grantRoleId)
   logAccept(member)
 }
@@ -175,7 +175,11 @@ function logAccept(member: GuildMember) {
   logger.info(message)
 }
 
-async function checkCanAccept(interaction: CommandInteraction, member: GuildMember): Promise<string | undefined> {
+function normalizeMessage(message: string): string {
+  return message.trim().toLowerCase().replace(/\s+/g, " ")
+}
+
+async function checkCanAccept(member: GuildMember, message: string): Promise<string | undefined> {
   if (!moderationConfig) return "This feature is currently disabled."
 
   if (member.roles.cache.has(moderationConfig.grantRoleId)) {
@@ -187,8 +191,8 @@ async function checkCanAccept(interaction: CommandInteraction, member: GuildMemb
     return getBanMessage(ban)
   }
 
-  if (moderationConfig.acceptChannel && interaction.channelId !== moderationConfig.acceptChannel) {
-    return `You must run this command in <#${moderationConfig.acceptChannel}>.`
+  if (normalizeMessage(message) !== normalizeMessage(moderationConfig.confirmationMessage)) {
+    return `You must provide the exact confirmation message shown in <#${moderationConfig.rulesChannel}>`
   }
 
   checkHasRequiredRoles(member, moderationConfig.acceptRequiredRoles)
@@ -231,7 +235,7 @@ function getBanMessage(ban: DiscussionBan): string {
   const expiresAtTimestamp = `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`
   return (
     `You have been temporarily banned from discussion${ban.reason ? ` due to ${ban.reason}` : ""}.\n` +
-    `You may re-join discussion by running /accept ${expiresAtTimestamp}`
+    `You may re-join discussion by re-running /accept ${expiresAtTimestamp}`
   )
 }
 

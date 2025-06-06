@@ -100,8 +100,8 @@ async function checkCanReport(reporter, reportedMessage) {
     }
     return;
 }
-export async function acceptCommand(interaction, member) {
-    return handleInteractionErrors(interaction, logger, () => doAccept(interaction, member), () => interaction.reply({
+export async function acceptCommand(interaction, member, message) {
+    return handleInteractionErrors(interaction, logger, () => doAccept(interaction, member, message), () => interaction.reply({
         content: `You have been granted the <@&${moderationConfig.grantRoleId}> role!`,
         flags: MessageFlags.Ephemeral,
     }));
@@ -112,8 +112,8 @@ export async function unacceptCommand(interaction, member) {
         flags: MessageFlags.Ephemeral,
     }));
 }
-async function doAccept(interaction, member) {
-    maybeUserError(await checkCanAccept(interaction, member));
+async function doAccept(interaction, member, message) {
+    maybeUserError(await checkCanAccept(member, message));
     await member.roles.add(moderationConfig.grantRoleId);
     logAccept(member);
 }
@@ -122,7 +122,10 @@ function logAccept(member) {
     // logBoth( member.guild, message )
     logger.info(message);
 }
-async function checkCanAccept(interaction, member) {
+function normalizeMessage(message) {
+    return message.trim().toLowerCase().replace(/\s+/g, " ");
+}
+async function checkCanAccept(member, message) {
     if (!moderationConfig)
         return "This feature is currently disabled.";
     if (member.roles.cache.has(moderationConfig.grantRoleId)) {
@@ -132,8 +135,8 @@ async function checkCanAccept(interaction, member) {
     if (ban && ban.expiresAt > new Date()) {
         return getBanMessage(ban);
     }
-    if (moderationConfig.acceptChannel && interaction.channelId !== moderationConfig.acceptChannel) {
-        return `You must run this command in <#${moderationConfig.acceptChannel}>.`;
+    if (normalizeMessage(message) !== normalizeMessage(moderationConfig.confirmationMessage)) {
+        return `You must provide the exact confirmation message shown in <#${moderationConfig.rulesChannel}>`;
     }
     checkHasRequiredRoles(member, moderationConfig.acceptRequiredRoles);
     return;
@@ -168,7 +171,7 @@ function getBanMessage(ban) {
     const expiresAt = ban.expiresAt;
     const expiresAtTimestamp = `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`;
     return (`You have been temporarily banned from discussion${ban.reason ? ` due to ${ban.reason}` : ""}.\n` +
-        `You may re-join discussion by running /accept ${expiresAtTimestamp}`);
+        `You may re-join discussion by re-running /accept ${expiresAtTimestamp}`);
 }
 function handleReportNonInteractive(reporter, reportedMessage, reportReason, totalMessageReports) {
     const guild = reporter.guild;
