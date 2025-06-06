@@ -175,7 +175,7 @@ function getBanMessage(ban) {
     const expiresAt = ban.expiresAt;
     const expiresAtTimestamp = `<t:${Math.floor(expiresAt.getTime() / 1000)}:R>`;
     return (`You have been temporarily banned from discussion${ban.reason ? ` due to ${ban.reason}` : ""}.\n` +
-        `You may re-join discussion by re-running /accept ${expiresAtTimestamp}`);
+        `You may re-join discussion by re-running /accept-discussion-rules ${expiresAtTimestamp}`);
 }
 function handleReportNonInteractive(reporter, reportedMessage, reportReason, totalMessageReports) {
     const guild = reporter.guild;
