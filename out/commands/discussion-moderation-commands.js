@@ -237,6 +237,7 @@ let DiscussAdminCommand = class DiscussAdminCommand extends Subcommand {
             await ban.destroy();
             return interaction.reply({
                 content: `<@${user.id}> has been unbanned from discussions.`,
+                flags: MessageFlags.Ephemeral,
             });
         });
     }
