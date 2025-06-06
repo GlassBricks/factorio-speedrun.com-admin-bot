@@ -59,7 +59,8 @@ const config = {
     logChannelId: Channels.NotGeneral,
 
     acceptRequiredRoles: [Roles.Notif],
-    acceptChannel: Channels.Discuss,
+    rulesChannel: Channels.Discuss,
+    confirmationMessage: "I confirm I have read the rules",
     grantRoleId: Roles.Discusser,
 
     reportRequiredRoles: [Roles.Discusser, Roles.Notif],

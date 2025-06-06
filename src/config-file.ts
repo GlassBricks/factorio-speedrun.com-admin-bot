@@ -78,7 +78,8 @@ export interface DiscussionModerationConfig {
   logChannelId: Snowflake
 
   acceptRequiredRoles: Snowflake[]
-  acceptChannel?: Snowflake
+  rulesChannel: Snowflake
+  confirmationMessage: string
   grantRoleId: Snowflake
 
   reportRequiredRoles?: Snowflake[]

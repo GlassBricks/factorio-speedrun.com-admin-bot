@@ -105,7 +105,8 @@ If %n %r reacts are received %e, ` + reelectDescription,
   discussionModeration: {
     logChannelId: Channels.TranscriptsAndLogs,
     acceptRequiredRoles: [Roles.Speedrunner],
-    acceptChannel: Channels.DiscussionAccept,
+    rulesChannel: Channels.DiscussionAccept,
+    confirmationMessage: "I confirm I have read the rules, will follow them, and will report any violations I observe",
     grantRoleId: Roles.Discusser,
 
     reportRequiredRoles: [Roles.Discusser],

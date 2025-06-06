@@ -93,7 +93,7 @@ export class ReportCommand extends Command {
 }
 
 @ApplyOptions<Command.Options>({
-  name: "accept",
+  name: "accept-discussion-rules",
   description: "Accept the rules and get the discusser role",
   enabled: !!config.discussionModeration,
 })
@@ -101,7 +101,13 @@ export class AcceptCommand extends Command {
   override registerApplicationCommands(registry: ApplicationCommandRegistry) {
     registry.registerChatInputCommand(
       (builder) =>
-        builder.setName(this.name).setDescription(this.description).setContexts(InteractionContextType.Guild),
+        builder
+          .setName(this.name)
+          .setDescription(this.description)
+          .setContexts(InteractionContextType.Guild)
+          .addStringOption((option) =>
+            option.setName("message").setDescription("Confirmation message").setRequired(true),
+          ),
       {
         idHints: config.discussionModeration?.acceptIdHint,
       },
@@ -116,12 +122,13 @@ export class AcceptCommand extends Command {
       })
     }
 
-    return acceptCommand(interaction, interaction.member)
+    const message = interaction.options.getString("message", true)
+    return acceptCommand(interaction, interaction.member, message)
   }
 }
 
 @ApplyOptions<Command.Options>({
-  name: "unaccept",
+  name: "unaccept-discussion-rules",
   description: "Remove your discusser role",
   enabled: !!config.discussionModeration,
 })
@@ -195,6 +202,12 @@ export class DiscussAdminCommand extends Subcommand {
               .addUserOption((opt) =>
                 opt.setName("user").setDescription("User to check ban status for").setRequired(true),
               ),
+          )
+          .addSubcommand((sub) =>
+            sub
+              .setName("unban")
+              .setDescription("Unban a user")
+              .addUserOption((opt) => opt.setName("user").setDescription("User to unban").setRequired(true)),
           )
           .setDefaultMemberPermissions(PermissionFlagsBits.ManageMessages),
       {
@@ -270,6 +283,7 @@ export class DiscussAdminCommand extends Subcommand {
       const reason = ban.reason ? `Reason: ${ban.reason}` : "No reason provided"
       return interaction.reply({
         content: `<@${user.id}> is banned until ${expiresAt}. ${reason}`,
+        flags: MessageFlags.Ephemeral,
       })
     })
   }
