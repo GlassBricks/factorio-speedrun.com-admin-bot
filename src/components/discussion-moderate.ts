@@ -176,7 +176,11 @@ function logAccept(member: GuildMember) {
 }
 
 function normalizeMessage(message: string): string {
-  return message.trim().toLowerCase().replace(/\s+/g, " ")
+  return message // remove punctuation
+    .replaceAll(/[.,]/g, "")
+    .replaceAll(/\s+/g, " ")
+    .trim()
+    .toLowerCase()
 }
 
 async function checkCanAccept(member: GuildMember, message: string): Promise<string | undefined> {
