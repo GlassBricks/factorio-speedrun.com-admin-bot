@@ -107,7 +107,8 @@ If %n %r reacts are received %e, ` + reelectDescription,
 
     acceptRequiredRoles: [Roles.Speedrunner],
     rulesChannel: Channels.DiscussionRules,
-    confirmationMessage: "I confirm I have read the rules, will follow them, and will report any violations I observe",
+    confirmationMessage:
+      "I hereby confirm I have read the rules, will follow them, and will report any violations I observe.",
     grantRoleId: Roles.Discusser,
 
     reportRequiredRoles: [Roles.Discusser],

@@ -123,7 +123,11 @@ function logAccept(member) {
     logger.info(message);
 }
 function normalizeMessage(message) {
-    return message.trim().toLowerCase().replace(/\s+/g, " ");
+    return message // remove punctuation
+        .replaceAll(/[.,]/g, "")
+        .replaceAll(/\s+/g, " ")
+        .trim()
+        .toLowerCase();
 }
 async function checkCanAccept(member, message) {
     if (!moderationConfig)
