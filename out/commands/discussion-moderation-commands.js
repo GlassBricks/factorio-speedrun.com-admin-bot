@@ -32,7 +32,7 @@ let ReportCommand = class ReportCommand extends Command {
             idHints: config.discussionModeration?.reportIdHint,
         });
         registry.registerContextMenuCommand((builder) => builder
-            .setName("Report Message")
+            .setName("Report discussion rule violation")
             .setContexts(InteractionContextType.Guild)
             .setType(ApplicationCommandType.Message)
             .setDefaultMemberPermissions("0"), {
