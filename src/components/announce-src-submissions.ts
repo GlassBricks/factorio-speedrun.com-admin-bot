@@ -50,7 +50,7 @@ const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
 
 type VideoProvider = "twitch" | "youtube"
-const videoProviderConfigs: Record<VideoProvider, RegExp> = {
+const videoProviderRegexes: Record<VideoProvider, RegExp> = {
   twitch: /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
   youtube: /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
 }
@@ -474,7 +474,7 @@ interface VideoUrlInfo {
 }
 
 function findVideoUrlFromUrl(url: string): VideoUrlInfo | undefined {
-  for (const [provider, regex] of Object.entries(videoProviderConfigs)) {
+  for (const [provider, regex] of Object.entries(videoProviderRegexes)) {
     const match = url.match(regex)
     if (match) {
       return {
