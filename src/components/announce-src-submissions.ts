@@ -352,7 +352,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
       }
 
       if (shouldCheckNewPlayers) {
-        launch(announceNewPlayers(notifyChannel, toEditParts.firstTimeSubmissionPlayers!))
+        launch(announceNewPlayers(notifyChannel, toEditParts.firstTimeSubmissionPlayers))
         dbRun.newPlayerAnnounceChecked = true
       }
 
@@ -372,8 +372,8 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
     return `${words.slice(0, -1).join(", ")}, and ${words[words.length - 1]}`
   }
 
-  async function announceNewPlayers(channel: SendableChannels, newPlayers: string[]) {
-    if (config.announceNewPlayersMessage && newPlayers.length > 0) {
+  async function announceNewPlayers(channel: SendableChannels, newPlayers: string[] | undefined) {
+    if (config.announceNewPlayersMessage && newPlayers && newPlayers.length > 0) {
       await channel.send({
         content: config.announceNewPlayersMessage.message.replace("%p", joinWordsAnd(newPlayers)),
         allowedMentions: config.announceNewPlayersMessage.allowedMentions,

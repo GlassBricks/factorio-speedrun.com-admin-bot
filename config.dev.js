@@ -65,7 +65,7 @@ const config = {
 
     reportRequiredRoles: [Roles.Discusser, Roles.Notif],
     reportableChannels: [Channels.Discuss],
-    reportsTempBanThreshold: 2,
+    reportsTempBanThreshold: 1,
 
     tempBanDays: 1 / 24 / 60, // 1 minute
     tempBanNotify: [Roles.Notif],
