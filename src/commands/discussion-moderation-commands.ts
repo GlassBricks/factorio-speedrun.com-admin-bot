@@ -50,7 +50,7 @@ export class ReportCommand extends Command {
     registry.registerContextMenuCommand(
       (builder) =>
         builder
-          .setName("Report Message")
+          .setName("Report discussion rule violation")
           .setContexts(InteractionContextType.Guild)
           .setType(ApplicationCommandType.Message as ContextMenuCommandType)
           .setDefaultMemberPermissions("0"),
