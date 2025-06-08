@@ -304,7 +304,7 @@ async function createTempBanFromMessageReports(reportedMessage: Message, reporte
   const now = new Date()
   const expiresAt = new Date(now.getTime() + tempBanDays * 24 * 60 * 60 * 1000)
   let ban = await getCurrentBan(reportedMember)
-  const banReason = `${moderationConfig!.reportsTempBanThreshold} reports on ${reportedMessage.url}`
+  const banReason = `multiple reports on ${reportedMessage.url}`
   if (ban && ban.expiresAt > now) {
     // Renew ban
     ban.expiresAt = ban.expiresAt > expiresAt ? ban.expiresAt : expiresAt
