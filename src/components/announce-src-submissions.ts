@@ -579,10 +579,6 @@ function launch<T>(promise: Promise<T>) {
   void logErrors(promise)
 }
 
-function launchFn<T>(fn: () => Promise<T>) {
-  launch(fn())
-}
-
 interface GameData {
   game: Game<"variables">
   variablesById: Map<string, Variable>
