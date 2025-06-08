@@ -38,7 +38,10 @@ export class ReportCommand extends Command {
               .setDescription('Message to report (right click -> "Copy message link" -> paste here)')
               .setRequired(true),
           )
-          .addStringOption((option) => option.setName("reason").setDescription("Report reason"))
+          .addStringOption((option) => option.setName("reason").setDescription("Report reason").setMaxLength(900))
+          .addUserOption((option) =>
+            option.setName("user").setDescription("User to report (if different from author of message)"),
+          )
           .setDefaultMemberPermissions("0"),
       {
         idHints: config.discussionModeration?.reportIdHint,
@@ -58,11 +61,12 @@ export class ReportCommand extends Command {
   }
 
   override async chatInputRun(interaction: ChatInputCommandInteraction) {
-    const messageLink = interaction.options.getString("message-link", true)
+    const messageLink = interaction.options.getString("message-link", true).trim()
     const message = await getMessageFromLink(interaction.client, messageLink).catch((err) => {
       interaction.client.logger.error("Failed to fetch message from link:", err)
       return undefined
     })
+    const reportedUser = interaction.options.getUser("user", false)
     if (!message) {
       return interaction.reply({
         content:
@@ -76,7 +80,13 @@ export class ReportCommand extends Command {
         flags: MessageFlags.Ephemeral,
       })
     }
-    return report(interaction, interaction.member, message, interaction.options.getString("reason") ?? undefined)
+    return report(
+      interaction,
+      interaction.member,
+      message,
+      reportedUser,
+      interaction.options.getString("reason") ?? undefined,
+    )
   }
 
   override async contextMenuRun(interaction: ContextMenuCommandInteraction) {
@@ -88,7 +98,7 @@ export class ReportCommand extends Command {
     }
     const message = interaction.targetMessage
 
-    return report(interaction, interaction.member, message, undefined)
+    return report(interaction, interaction.member, message, null)
   }
 }
 

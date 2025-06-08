@@ -1,9 +1,10 @@
-import { MessageFlags, } from "discord.js";
+import { MessageFlags, PermissionFlagsBits, } from "discord.js";
 import config from "../config-file.js";
 import { createLogger } from "../logger.js";
 import { DiscussionBan, MessageReport, sequelize } from "../db/index.js";
 import { handleInteractionErrors, maybeUserError, userError } from "./error-handling.js";
 import * as crypto from "node:crypto";
+import { GuildChannel } from "discord.js";
 const moderationConfig = config.discussionModeration;
 const logger = createLogger("[Discussion]");
 function getLogChannel(guild) {
@@ -28,16 +29,30 @@ function logBoth(guild, message) {
         ?.send({ content: message, allowedMentions: { parse: [] } })
         .catch((err) => logger.error("Failed to send log message:", err));
 }
-export async function report(interaction, reporter, reportedMessage, reason) {
-    return handleInteractionErrors(interaction, logger, () => doReport(reporter, reportedMessage, reason), () => interaction.reply({
+export async function report(interaction, reporter, reportedMessage, reportedUser, reason) {
+    return handleInteractionErrors(interaction, logger, () => doReport(reporter, reportedMessage, reportedUser, reason), () => interaction.reply({
         content: "Your report was submitted:\n" + ` ${reportedMessage.url}: ${reason || "No reason provided"}`,
         flags: MessageFlags.Ephemeral,
     }));
 }
-async function doReport(reporter, reportedMessage, reason) {
-    maybeUserError(await checkCanReport(reporter, reportedMessage));
-    const { totalMessageReports } = await sequelize.transaction(() => createDbReport(reporter, reportedMessage, reason));
-    handleReportNonInteractive(reporter, reportedMessage, reason, totalMessageReports);
+async function doReport(reporter, reportedMessage, reportedUser, reason) {
+    if (reportedUser !== null && reportedUser.id !== reportedMessage.author.id) {
+        if (!reason) {
+            userError("A reason must be provided, if reporting someone different than the author of the message.");
+        }
+    }
+    reportedUser ??= reportedMessage.author;
+    maybeUserError(await checkCanReport(reporter, reportedMessage, reportedUser));
+    const guild = reporter.guild;
+    let reportedMember;
+    try {
+        reportedMember = await guild.members.fetch(reportedUser);
+    }
+    catch {
+        userError("Reported user is not in this server.");
+    }
+    const { totalMessageReports } = await sequelize.transaction(() => createDbReport(reporter, reportedMessage, reportedMember, reason));
+    handleReportNonInteractive(reporter, reportedMessage, reportedMember, reason, totalMessageReports);
 }
 /**
  * A simple hash function for IDs, to pseudo-anonymize them in logs.
@@ -49,46 +64,34 @@ function hashId(id) {
     hash.update(salt);
     return hash.digest("hex");
 }
-function logReport(reportedMessage, reporter, reason) {
+function logReport(reportedMessage, reporter, reportedMember, reason) {
     const userHash = hashId(reporter.id).substring(0, 8);
-    // only report user hash, don't report user ID in logs
-    logBoth(reportedMessage.guild, `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported by ${userHash}: ${reason || "No reason provided"}`);
-}
-async function createDbReport(reporter, reportedMessage, reason) {
-    const report = await MessageReport.create({
-        messageId: reportedMessage.id,
-        reporterId: reporter.id,
-        messageUrl: reportedMessage.url,
-        authorId: reportedMessage.author.id,
-        reason: reason,
-    });
-    const totalMessageReports = await MessageReport.count({
-        where: { messageId: reportedMessage.id },
-    });
-    return {
-        report,
-        totalMessageReports,
-    };
+    logBoth(reportedMessage.guild, `<@${reportedMember.id}> was reported by ${userHash} (for ${reportedMessage.url}): ${reason || "No reason provided"}`);
 }
 const dev = process.env.NODE_ENV === "development";
-async function checkCanReport(reporter, reportedMessage) {
+async function checkCanReport(reporter, reportedMessage, reportedUser) {
     if (!moderationConfig) {
         return "Reporting is currently disabled.";
     }
+    checkHasRequiredRoles(reporter, moderationConfig.reportRequiredRoles);
+    const channel = reportedMessage.channel;
     if (moderationConfig.reportableChannels) {
-        const channel = reportedMessage.channel;
         const channelId = (channel.isThread() && channel.parentId) || channel.id;
         if (!moderationConfig.reportableChannels.includes(channelId)) {
             return "You cannot report messages in this channel.";
         }
     }
-    if (!dev && reportedMessage.author.id === reporter.id) {
-        return "You cannot report your own messages.";
+    if (!dev && reportedUser.id === reporter.id) {
+        return "You cannot report yourself.";
     }
-    if (reportedMessage.author.bot) {
-        return "You cannot report bot messages.";
+    if (reportedUser.bot) {
+        return "You cannot report bots.";
     }
-    checkHasRequiredRoles(reporter, moderationConfig.reportRequiredRoles);
+    if (channel instanceof GuildChannel) {
+        if (!channel.permissionsFor(reportedUser)?.has(PermissionFlagsBits.ViewChannel)) {
+            return `<@${reportedUser.id}> does not have access to this channel.`;
+        }
+    }
     const existingReport = await MessageReport.findOne({
         where: {
             messageId: reportedMessage.id,
@@ -99,6 +102,22 @@ async function checkCanReport(reporter, reportedMessage) {
         return "You have already reported this message with the reason: " + (existingReport.reason || "No reason provided");
     }
     return;
+}
+async function createDbReport(reporter, reportedMessage, reportedMember, reason) {
+    const report = await MessageReport.create({
+        messageId: reportedMessage.id,
+        reporterId: reporter.id,
+        messageUrl: reportedMessage.url,
+        authorId: reportedMember.id,
+        reason: reason,
+    });
+    const totalMessageReports = await MessageReport.count({
+        where: { messageId: reportedMessage.id, authorId: reportedMember.id },
+    });
+    return {
+        report,
+        totalMessageReports,
+    };
 }
 export async function acceptCommand(interaction, member, message) {
     return handleInteractionErrors(interaction, logger, () => doAccept(interaction, member, message), () => interaction.reply({
@@ -177,24 +196,21 @@ function getBanMessage(ban) {
     return (`You have been temporarily banned from discussion${ban.reason ? ` due to ${ban.reason}` : ""}.\n` +
         `You may re-join discussion by re-running /accept-discussion-rules ${expiresAtTimestamp}`);
 }
-function handleReportNonInteractive(reporter, reportedMessage, reportReason, totalMessageReports) {
+function handleReportNonInteractive(reporter, reportedMessage, reportedMember, reportReason, totalMessageReports) {
     const guild = reporter.guild;
-    logReport(reportedMessage, reporter, reportReason);
+    logReport(reportedMessage, reporter, reportedMember, reportReason);
     if (totalMessageReports == moderationConfig.reportsTempBanThreshold) {
-        logErrorsToChannel(guild, createTempBanFromMessageReports(reportedMessage));
-        logErrorsToChannel(guild, logTempBan(reportedMessage));
+        logErrorsToChannel(guild, createTempBanFromMessageReports(reportedMessage, reportedMember));
+        logErrorsToChannel(guild, logTempBan(reportedMessage, reportedMember));
     }
 }
-async function createTempBanFromMessageReports(reportedMessage) {
-    const author = reportedMessage.member;
-    if (!author)
-        return;
+async function createTempBanFromMessageReports(reportedMessage, reportedMember) {
     const guild = reportedMessage.guild;
     const discusserRoleId = moderationConfig.grantRoleId;
     const tempBanDays = moderationConfig.tempBanDays;
     const now = new Date();
     const expiresAt = new Date(now.getTime() + tempBanDays * 24 * 60 * 60 * 1000);
-    let ban = await getCurrentBan(author);
+    let ban = await getCurrentBan(reportedMember);
     const banReason = `${moderationConfig.reportsTempBanThreshold} reports on ${reportedMessage.url}`;
     if (ban && ban.expiresAt > now) {
         // Renew ban
@@ -205,7 +221,7 @@ async function createTempBanFromMessageReports(reportedMessage) {
     else {
         // New ban
         ban = new DiscussionBan({
-            userId: author.id,
+            userId: reportedMember.id,
             guildId: guild.id,
             bannedAt: now,
             expiresAt,
@@ -213,29 +229,34 @@ async function createTempBanFromMessageReports(reportedMessage) {
         });
     }
     await ban.save();
-    if (discusserRoleId && author.roles.cache.has(discusserRoleId)) {
-        await author.roles.remove(discusserRoleId, "Temp ban due to message reports");
+    if (discusserRoleId && reportedMember.roles.cache.has(discusserRoleId)) {
+        await reportedMember.roles.remove(discusserRoleId, "Temp ban due to message reports");
     }
-    await author.send(getBanMessage(ban));
+    await reportedMember.send(getBanMessage(ban));
 }
-async function logTempBan(reportedMessage) {
+async function logTempBan(reportedMessage, reportedMember) {
     const totalMessageReports = moderationConfig.reportsTempBanThreshold;
+    const message = `<@${reportedMember.id}> was reported ${totalMessageReports} times for ${reportedMessage.url}`;
     const reporters = await MessageReport.findAll({ where: { messageId: reportedMessage.id } });
-    logger.info(`Temp banning <@${reportedMessage.author.id}> for ${totalMessageReports} message reports on ${reportedMessage.url}.`);
+    logger.info(message);
     await getLogChannel(reportedMessage.guild)?.send({
         content: (moderationConfig.tempBanNotify ?? []).map((roleId) => `<@&${roleId}>`).join(" "),
         embeds: [
             {
                 title: `Temp ban!`,
-                description: `${reportedMessage.url} (by <@${reportedMessage.author.id}>) was reported ${totalMessageReports} times:`,
-                fields: [
-                    {
-                        name: "Reports",
-                        value: reporters
-                            .map((report) => `<@${report.reporterId}>: ${report.reason || "No reason provided"}`)
-                            .join("\n"),
-                    },
-                ],
+                description: message,
+                // fields: [
+                //   {
+                //     name: "Reports",
+                //     value: reporters
+                //       .map((report) => `<@${report.reporterId}>: ${report.reason || "No reason provided"}`)
+                //       .join("\n"),
+                //   },
+                // ],
+                fields: reporters.map((report) => ({
+                    name: "",
+                    value: `<@${report.reporterId}>: ${report.reason || "No reason provided"}`,
+                })),
             },
         ],
     });

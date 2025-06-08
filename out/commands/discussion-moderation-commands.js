@@ -26,7 +26,8 @@ let ReportCommand = class ReportCommand extends Command {
             .setName("message-link")
             .setDescription('Message to report (right click -> "Copy message link" -> paste here)')
             .setRequired(true))
-            .addStringOption((option) => option.setName("reason").setDescription("Report reason"))
+            .addStringOption((option) => option.setName("reason").setDescription("Report reason").setMaxLength(900))
+            .addUserOption((option) => option.setName("user").setDescription("User to report (if different from author of message)"))
             .setDefaultMemberPermissions("0"), {
             idHints: config.discussionModeration?.reportIdHint,
         });
@@ -39,11 +40,12 @@ let ReportCommand = class ReportCommand extends Command {
         });
     }
     async chatInputRun(interaction) {
-        const messageLink = interaction.options.getString("message-link", true);
+        const messageLink = interaction.options.getString("message-link", true).trim();
         const message = await getMessageFromLink(interaction.client, messageLink).catch((err) => {
             interaction.client.logger.error("Failed to fetch message from link:", err);
             return undefined;
         });
+        const reportedUser = interaction.options.getUser("user", false);
         if (!message) {
             return interaction.reply({
                 content: "Could not find the provided message! Please check the link, or contact the admins/devs if you think this is a bug.",
@@ -56,7 +58,7 @@ let ReportCommand = class ReportCommand extends Command {
                 flags: MessageFlags.Ephemeral,
             });
         }
-        return report(interaction, interaction.member, message, interaction.options.getString("reason") ?? undefined);
+        return report(interaction, interaction.member, message, reportedUser, interaction.options.getString("reason") ?? undefined);
     }
     async contextMenuRun(interaction) {
         if (!interaction.inCachedGuild() || !interaction.isMessageContextMenuCommand()) {
@@ -66,7 +68,7 @@ let ReportCommand = class ReportCommand extends Command {
             });
         }
         const message = interaction.targetMessage;
-        return report(interaction, interaction.member, message, undefined);
+        return report(interaction, interaction.member, message, null);
     }
 };
 ReportCommand = __decorate([

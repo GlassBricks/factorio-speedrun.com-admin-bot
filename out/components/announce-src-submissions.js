@@ -268,7 +268,7 @@ function setup(client, config) {
         return `${words.slice(0, -1).join(", ")}, and ${words[words.length - 1]}`;
     }
     async function announceNewPlayers(channel, newPlayers) {
-        if (config.announceNewPlayersMessage && newPlayers.length > 0) {
+        if (config.announceNewPlayersMessage && newPlayers && newPlayers.length > 0) {
             await channel.send({
                 content: config.announceNewPlayersMessage.message.replace("%p", joinWordsAnd(newPlayers)),
                 allowedMentions: config.announceNewPlayersMessage.allowedMentions,
