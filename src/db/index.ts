@@ -83,6 +83,10 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
 
   @Column
   declare videoProof?: string
+
+  // joined by comma.
+  @Column
+  declare newPlayerAnnounceChecked: boolean
 }
 
 @Table
