@@ -85,7 +85,10 @@ let AcceptCommand = class AcceptCommand extends Command {
             .setName(this.name)
             .setDescription(this.description)
             .setContexts(InteractionContextType.Guild)
-            .addStringOption((option) => option.setName("message").setDescription("Confirmation message").setRequired(true)), {
+            .addStringOption((option) => option
+            .setName("confirmation-message")
+            .setDescription("Confirmation message. See #src-discussion-rules for more info")
+            .setRequired(true)), {
             idHints: config.discussionModeration?.acceptIdHint,
         });
     }
@@ -96,7 +99,7 @@ let AcceptCommand = class AcceptCommand extends Command {
                 flags: MessageFlags.Ephemeral,
             });
         }
-        const message = interaction.options.getString("message", true);
+        const message = interaction.options.getString("confirmation-message", true);
         return acceptCommand(interaction, interaction.member, message);
     }
 };
