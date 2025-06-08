@@ -413,6 +413,7 @@ interface RunWithMaybeDbRun {
   dbRun?: SrcRun
 }
 
+const messageUpdateMaxAge = 30
 /**
  * Fetches runs that:
  * - Are newer than the newest run in the database (newly submitted)
@@ -424,7 +425,7 @@ interface RunWithMaybeDbRun {
 async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]> {
   const allDbRuns = await SrcRun.findAll({ order: [["submissionTime", "desc"]] })
   const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now() - 60 * 60 * 24 * 1000 * 7)
-  const earliestSavedSubmission = allDbRuns[allDbRuns.length - 1]?.submissionTime ?? latestSavedSubmission
+  const earliestDate = new Date(Date.now() - 60 * 60 * 24 * 1000 * messageUpdateMaxAge)
 
   const newStatusRuns = gameIds.map((gameId) =>
     getAllRuns({
@@ -435,7 +436,7 @@ async function getRunsToProcess(gameIds: string[]): Promise<RunWithMaybeDbRun[]>
     }),
   )
   const allExistingRuns = gameIds.map((gameId) =>
-    getAllRunsSince(earliestSavedSubmission, {
+    getAllRunsSince(earliestDate, {
       game: gameId,
       orderby: "date",
       direction: "desc",

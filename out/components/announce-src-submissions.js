@@ -303,6 +303,7 @@ function setup(client, config) {
         });
     }
 }
+const messageUpdateMaxAge = 30;
 /**
  * Fetches runs that:
  * - Are newer than the newest run in the database (newly submitted)
@@ -314,14 +315,14 @@ function setup(client, config) {
 async function getRunsToProcess(gameIds) {
     const allDbRuns = await SrcRun.findAll({ order: [["submissionTime", "desc"]] });
     const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now() - 60 * 60 * 24 * 1000 * 7);
-    const earliestSavedSubmission = allDbRuns[allDbRuns.length - 1]?.submissionTime ?? latestSavedSubmission;
+    const earliestDate = new Date(Date.now() - 60 * 60 * 24 * 1000 * messageUpdateMaxAge);
     const newStatusRuns = gameIds.map((gameId) => getAllRuns({
         game: gameId,
         status: "new",
         embed: runEmbeds,
         max: 200,
     }));
-    const allExistingRuns = gameIds.map((gameId) => getAllRunsSince(earliestSavedSubmission, {
+    const allExistingRuns = gameIds.map((gameId) => getAllRunsSince(earliestDate, {
         game: gameId,
         orderby: "date",
         direction: "desc",
