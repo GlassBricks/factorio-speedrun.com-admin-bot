@@ -50,7 +50,7 @@ const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
 
 type VideoProvider = "twitch" | "youtube"
-const videoProviderConfigs: Record<VideoProvider, RegExp> = {
+const videoProviderRegexes: Record<VideoProvider, RegExp> = {
   twitch: /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
   youtube: /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
 }
@@ -262,6 +262,7 @@ function isEmptyObject(obj: Record<string, unknown>) {
   }
   return true
 }
+
 function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
   scheduleJob("processSrcSubmissions", config.cronSchedule, () => logErrors(run()))
     // Run once on startup
@@ -307,15 +308,20 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         messageVersion: MESSAGE_VERSION,
         lastStatus: SrcRunStatus.Unknown,
         videoProof: currentVideoProof?.url,
+        newPlayerAnnounceChecked: false,
       })
     }
 
-    launchFn(async () => {
-      const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION
-      const toEditParts: Partial<RunMessageParts> = isOutdatedMessage ? await getInitialMessage(gameIds, srcRun) : {}
-      const editAllParts = isOutdatedMessage || isNewMessage
+    const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION
+    const editAllParts = isOutdatedMessage || isNewMessage
+    const statusChanged = dbRun.lastStatus !== status
+    const shouldCheckNewPlayers =
+      !dbRun.newPlayerAnnounceChecked && (isNewMessage || statusChanged) && status === SrcRunStatus.Verified
 
-      const statusChanged = dbRun.lastStatus !== status
+    const shouldAwaitUpdate = shouldCheckNewPlayers
+    const promise = (async () => {
+      const toEditParts: Partial<RunMessageParts> = isOutdatedMessage ? await getInitialMessage(gameIds, srcRun) : {}
+
       if (editAllParts || statusChanged) {
         logger.trace("Updating run status", srcRun.id, "to", status)
         toEditParts.status = await getStatusText(srcRun)
@@ -327,7 +333,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         toEditParts.videoProof = await fetchVideoText(currentVideoProof)
         dbRun.videoProof = currentVideoProof?.url
       }
-      if (editAllParts) {
+      if (editAllParts || shouldCheckNewPlayers) {
         const newPlayers = await findNewPlayers(gameIds, srcRun.players.data, srcRun.id)
         if (newPlayers.length > 0) {
           toEditParts.firstTimeSubmissionPlayers = newPlayers
@@ -345,8 +351,34 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         logger.debug("No changes for run", srcRun.id)
       }
 
+      if (shouldCheckNewPlayers) {
+        launch(announceNewPlayers(notifyChannel, toEditParts.firstTimeSubmissionPlayers!))
+        dbRun.newPlayerAnnounceChecked = true
+      }
+
       launch(dbRun.save())
-    })
+    })()
+    if (shouldAwaitUpdate) {
+      await promise
+    } else {
+      launch(promise)
+    }
+  }
+
+  function joinWordsAnd(words: string[]): string {
+    if (words.length === 0) return ""
+    if (words.length === 1) return words[0]!
+    if (words.length === 2) return words.join(" and ")
+    return `${words.slice(0, -1).join(", ")}, and ${words[words.length - 1]}`
+  }
+
+  async function announceNewPlayers(channel: SendableChannels, newPlayers: string[]) {
+    if (config.announceNewPlayersMessage && newPlayers.length > 0) {
+      await channel.send({
+        content: config.announceNewPlayersMessage.message.replace("%p", joinWordsAnd(newPlayers)),
+        allowedMentions: config.announceNewPlayersMessage.allowedMentions,
+      })
+    }
   }
 
   function createEmbed(parts: Partial<RunMessageParts>, editFrom?: Embed) {
@@ -442,7 +474,7 @@ interface VideoUrlInfo {
 }
 
 function findVideoUrlFromUrl(url: string): VideoUrlInfo | undefined {
-  for (const [provider, regex] of Object.entries(videoProviderConfigs)) {
+  for (const [provider, regex] of Object.entries(videoProviderRegexes)) {
     const match = url.match(regex)
     if (match) {
       return {
@@ -545,10 +577,6 @@ async function logErrors<T>(promise: Promise<T>): Promise<T | undefined> {
 
 function launch<T>(promise: Promise<T>) {
   void logErrors(promise)
-}
-
-function launchFn<T>(fn: () => Promise<T>) {
-  launch(fn())
 }
 
 interface GameData {

@@ -16,7 +16,7 @@ export function setUpAnnounceSrcSubmissions(client, config) {
  */
 const MESSAGE_VERSION = 13;
 const runEmbeds = "players";
-const videoProviderConfigs = {
+const videoProviderRegexes = {
     twitch: /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
     youtube: /^(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)([a-zA-Z0-9_-]{11})/,
 };
@@ -207,13 +207,16 @@ function setup(client, config) {
                 messageVersion: MESSAGE_VERSION,
                 lastStatus: SrcRunStatus.Unknown,
                 videoProof: currentVideoProof?.url,
+                newPlayerAnnounceChecked: false,
             });
         }
-        launchFn(async () => {
-            const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION;
+        const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION;
+        const editAllParts = isOutdatedMessage || isNewMessage;
+        const statusChanged = dbRun.lastStatus !== status;
+        const shouldCheckNewPlayers = !dbRun.newPlayerAnnounceChecked && (isNewMessage || statusChanged) && status === SrcRunStatus.Verified;
+        const shouldAwaitUpdate = shouldCheckNewPlayers;
+        const promise = (async () => {
             const toEditParts = isOutdatedMessage ? await getInitialMessage(gameIds, srcRun) : {};
-            const editAllParts = isOutdatedMessage || isNewMessage;
-            const statusChanged = dbRun.lastStatus !== status;
             if (editAllParts || statusChanged) {
                 logger.trace("Updating run status", srcRun.id, "to", status);
                 toEditParts.status = await getStatusText(srcRun);
@@ -225,7 +228,7 @@ function setup(client, config) {
                 toEditParts.videoProof = await fetchVideoText(currentVideoProof);
                 dbRun.videoProof = currentVideoProof?.url;
             }
-            if (editAllParts) {
+            if (editAllParts || shouldCheckNewPlayers) {
                 const newPlayers = await findNewPlayers(gameIds, srcRun.players.data, srcRun.id);
                 if (newPlayers.length > 0) {
                     toEditParts.firstTimeSubmissionPlayers = newPlayers;
@@ -242,8 +245,35 @@ function setup(client, config) {
             else {
                 logger.debug("No changes for run", srcRun.id);
             }
+            if (shouldCheckNewPlayers) {
+                launch(announceNewPlayers(notifyChannel, toEditParts.firstTimeSubmissionPlayers));
+                dbRun.newPlayerAnnounceChecked = true;
+            }
             launch(dbRun.save());
-        });
+        })();
+        if (shouldAwaitUpdate) {
+            await promise;
+        }
+        else {
+            launch(promise);
+        }
+    }
+    function joinWordsAnd(words) {
+        if (words.length === 0)
+            return "";
+        if (words.length === 1)
+            return words[0];
+        if (words.length === 2)
+            return words.join(" and ");
+        return `${words.slice(0, -1).join(", ")}, and ${words[words.length - 1]}`;
+    }
+    async function announceNewPlayers(channel, newPlayers) {
+        if (config.announceNewPlayersMessage && newPlayers.length > 0) {
+            await channel.send({
+                content: config.announceNewPlayersMessage.message.replace("%p", joinWordsAnd(newPlayers)),
+                allowedMentions: config.announceNewPlayersMessage.allowedMentions,
+            });
+        }
     }
     function createEmbed(parts, editFrom) {
         const builder = editFrom ? EmbedBuilder.from(editFrom) : new EmbedBuilder();
@@ -319,7 +349,7 @@ async function getRunsToProcess(gameIds) {
     return result;
 }
 function findVideoUrlFromUrl(url) {
-    for (const [provider, regex] of Object.entries(videoProviderConfigs)) {
+    for (const [provider, regex] of Object.entries(videoProviderRegexes)) {
         const match = url.match(regex);
         if (match) {
             return {
@@ -418,9 +448,6 @@ async function logErrors(promise) {
 }
 function launch(promise) {
     void logErrors(promise);
-}
-function launchFn(fn) {
-    launch(fn());
 }
 const userCache = new Map();
 const gameCache = new Map();

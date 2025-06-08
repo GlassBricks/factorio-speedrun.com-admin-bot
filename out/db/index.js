@@ -110,6 +110,10 @@ __decorate([
     Column,
     __metadata("design:type", String)
 ], SrcRun.prototype, "videoProof", void 0);
+__decorate([
+    Column,
+    __metadata("design:type", Boolean)
+], SrcRun.prototype, "newPlayerAnnounceChecked", void 0);
 SrcRun = __decorate([
     Table
 ], SrcRun);
