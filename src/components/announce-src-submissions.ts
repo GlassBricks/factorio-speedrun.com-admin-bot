@@ -44,7 +44,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 12
+const MESSAGE_VERSION = 13
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -175,7 +175,7 @@ async function getInitialMessage(gameIds: string[], run: RunWithEmbeds): Promise
   }
 }
 
-async function isNewSubmitter(gameIds: string[], playerId: string): Promise<boolean> {
+async function isNewSubmitter(gameIds: string[], playerId: string, excludedRunId: string): Promise<boolean> {
   for (const gameId of gameIds) {
     const run = await getAllRuns(
       {
@@ -185,16 +185,16 @@ async function isNewSubmitter(gameIds: string[], playerId: string): Promise<bool
       },
       { max: 1 },
     )
-    if (run.length > 0) return false
+    if (run.some((r) => r.id !== excludedRunId)) return false
   }
   return true
 }
 
-async function findNewPlayers(gameIds: string[], players: Player[]): Promise<string[]> {
+async function findNewPlayers(gameIds: string[], players: Player[], excludedRunId: string): Promise<string[]> {
   const result = []
   for (const player of players) {
     if (player.rel !== "user") continue
-    if (await isNewSubmitter(gameIds, player.id)) {
+    if (await isNewSubmitter(gameIds, player.id, excludedRunId)) {
       result.push(player.names.international)
     }
   }
@@ -328,7 +328,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         dbRun.videoProof = currentVideoProof?.url
       }
       if (editAllParts) {
-        const newPlayers = await findNewPlayers(gameIds, srcRun.players.data)
+        const newPlayers = await findNewPlayers(gameIds, srcRun.players.data, srcRun.id)
         if (newPlayers.length > 0) {
           toEditParts.firstTimeSubmissionPlayers = newPlayers
         }
