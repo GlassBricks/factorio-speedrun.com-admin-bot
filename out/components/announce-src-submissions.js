@@ -14,7 +14,7 @@ export function setUpAnnounceSrcSubmissions(client, config) {
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 12;
+const MESSAGE_VERSION = 13;
 const runEmbeds = "players";
 const videoProviderConfigs = {
     twitch: /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
@@ -106,24 +106,24 @@ async function getInitialMessage(gameIds, run) {
         status: "",
     };
 }
-async function isNewSubmitter(gameIds, playerId) {
+async function isNewSubmitter(gameIds, playerId, excludedRunId) {
     for (const gameId of gameIds) {
         const run = await getAllRuns({
             game: gameId,
             user: playerId,
             status: "verified",
         }, { max: 1 });
-        if (run.length > 0)
+        if (run.some((r) => r.id !== excludedRunId))
             return false;
     }
     return true;
 }
-async function findNewPlayers(gameIds, players) {
+async function findNewPlayers(gameIds, players, excludedRunId) {
     const result = [];
     for (const player of players) {
         if (player.rel !== "user")
             continue;
-        if (await isNewSubmitter(gameIds, player.id)) {
+        if (await isNewSubmitter(gameIds, player.id, excludedRunId)) {
             result.push(player.names.international);
         }
     }
@@ -226,7 +226,7 @@ function setup(client, config) {
                 dbRun.videoProof = currentVideoProof?.url;
             }
             if (editAllParts) {
-                const newPlayers = await findNewPlayers(gameIds, srcRun.players.data);
+                const newPlayers = await findNewPlayers(gameIds, srcRun.players.data, srcRun.id);
                 if (newPlayers.length > 0) {
                     toEditParts.firstTimeSubmissionPlayers = newPlayers;
                 }
