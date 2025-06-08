@@ -133,14 +133,15 @@ __decorate([
     __metadata("design:type", String)
 ], MessageReport.prototype, "reporterId", void 0);
 __decorate([
-    Column,
-    __metadata("design:type", String)
-], MessageReport.prototype, "messageUrl", void 0);
-__decorate([
+    PrimaryKey,
     Index,
     Column,
     __metadata("design:type", String)
 ], MessageReport.prototype, "authorId", void 0);
+__decorate([
+    Column,
+    __metadata("design:type", String)
+], MessageReport.prototype, "messageUrl", void 0);
 __decorate([
     Column,
     __metadata("design:type", String)

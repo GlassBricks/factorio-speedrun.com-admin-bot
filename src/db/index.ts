@@ -101,12 +101,13 @@ export class MessageReport extends Model<InferAttributes<MessageReport>, InferCr
   @Column
   declare reporterId: Snowflake
 
-  @Column
-  declare messageUrl: string
-
+  @PrimaryKey
   @Index
   @Column
   declare authorId: Snowflake
+
+  @Column
+  declare messageUrl: string
 
   @Column
   declare reason?: string
