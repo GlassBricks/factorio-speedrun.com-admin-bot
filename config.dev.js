@@ -11,7 +11,7 @@ const Roles = {
 /** @typedef {import("./src/config-file.ts").Config} Config */
 /** @type {Config} */
 const config = {
-  botName: "SRC Admin Team",
+  botName: "SRC Admin Bot",
   messageRelay: [
     {
       fromChannelId: Channels.General,

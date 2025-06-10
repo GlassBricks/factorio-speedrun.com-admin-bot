@@ -25,7 +25,6 @@ If the no-confidence vote is initiated and receives a 2/3 majority, the current 
 /** @typedef {import("./src/config-file.ts").Config} Config */
 /** @type {Config} */
 const config = {
-  botName: "SRC Admin Team",
   announcementRelay: [
     {
       fromChannelId: Channels.SrcAnnouncementsStaging,
