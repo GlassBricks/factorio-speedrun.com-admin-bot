@@ -74,7 +74,7 @@ let ReportCommand = class ReportCommand extends Command {
 ReportCommand = __decorate([
     ApplyOptions({
         name: "report",
-        description: "Report a message",
+        description: "Report a message for discussion moderation",
         enabled: !!config.discussionModeration,
     })
 ], ReportCommand);
@@ -187,15 +187,6 @@ let DiscussAdminCommand = class DiscussAdminCommand extends Subcommand {
             await this.maybeShowReports(interaction, reports, `Reports made by <@${user.id}>`);
         });
     }
-    formatReports(reports) {
-        return reports.map((r) => {
-            const timestamp = `<t:${Math.floor(r.createdAt.getTime() / 1000)}:f>`;
-            return {
-                name: `${r.messageUrl} on ${timestamp}`,
-                value: r.reason ?? "No reason provided",
-            };
-        });
-    }
     maybeShowReports(interaction, reports, description) {
         if (reports.length === 0) {
             return interaction.reply({ content: `No reports found.`, flags: MessageFlags.Ephemeral });
@@ -205,7 +196,12 @@ let DiscussAdminCommand = class DiscussAdminCommand extends Subcommand {
                 {
                     title: "Reports",
                     description,
-                    fields: this.formatReports(reports),
+                    fields: reports.map((r) => {
+                        return {
+                            name: `<@${r.reporterId}> reported <@${r.authorId}> for ${r.messageUrl} on <t:${Math.floor(r.createdAt.getTime() / 1000)}:f>`,
+                            value: r.reason ?? "No reason provided",
+                        };
+                    }),
                 },
             ],
             flags: MessageFlags.Ephemeral,

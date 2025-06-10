@@ -21,7 +21,7 @@ import { DiscussionBan, MessageReport } from "../db/index.js"
 
 @ApplyOptions<Command.Options>({
   name: "report",
-  description: "Report a message",
+  description: "Report a message for discussion moderation",
   enabled: !!config.discussionModeration,
 })
 export class ReportCommand extends Command {
@@ -251,16 +251,6 @@ export class DiscussAdminCommand extends Subcommand {
       await this.maybeShowReports(interaction, reports, `Reports made by <@${user.id}>`)
     })
   }
-
-  private formatReports(reports: MessageReport[]) {
-    return reports.map((r) => {
-      const timestamp = `<t:${Math.floor(r.createdAt.getTime() / 1000)}:f>`
-      return {
-        name: `${r.messageUrl} on ${timestamp}`,
-        value: r.reason ?? "No reason provided",
-      }
-    })
-  }
   private maybeShowReports(
     interaction: Subcommand.ChatInputCommandInteraction,
     reports: MessageReport[],
@@ -275,7 +265,12 @@ export class DiscussAdminCommand extends Subcommand {
         {
           title: "Reports",
           description,
-          fields: this.formatReports(reports),
+          fields: reports.map((r) => {
+            return {
+              name: `<@${r.reporterId}> reported <@${r.authorId}> for ${r.messageUrl} on <t:${Math.floor(r.createdAt.getTime() / 1000)}:f>`,
+              value: r.reason ?? "No reason provided",
+            }
+          }),
         },
       ],
       flags: MessageFlags.Ephemeral,

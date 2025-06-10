@@ -30,12 +30,12 @@ const client = new SapphireClient({
   },
 })
 
-if (config.botName) {
-  client.once(Events.ClientReady, (client) => {
-    client.logger.info("Bot is ready")
-    client.user.setUsername(config.botName!).catch((error) => client.logger.error("Failed to set bot name", error))
-  })
-}
+client.once(Events.ClientReady, (client) => {
+  client.logger.info("Bot is ready")
+  if (config.botName) {
+    client.user.setUsername(config.botName).catch((error) => client.logger.error("Failed to set bot name", error))
+  }
+})
 
 for (const a of config.announcementRelay ?? []) {
   setUpAnnouncementRelay(client, a)
