@@ -444,6 +444,14 @@ async function logErrors(promise) {
     }
     catch (e) {
         logger.error(e);
+        if (typeof e === "object" && e !== null) {
+            if ("parent" in e) {
+                logger.error(e.parent);
+            }
+            if ("original" in e) {
+                logger.error(e.original);
+            }
+        }
         return undefined;
     }
 }

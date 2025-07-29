@@ -570,8 +570,16 @@ async function getStatusText(run: RunWithEmbeds) {
 async function logErrors<T>(promise: Promise<T>): Promise<T | undefined> {
   try {
     return await promise
-  } catch (e) {
+  } catch (e: unknown) {
     logger.error(e)
+    if (typeof e === "object" && e !== null) {
+      if ("parent" in e) {
+        logger.error(e.parent)
+      }
+      if ("original" in e) {
+        logger.error(e.original)
+      }
+    }
     return undefined
   }
 }
