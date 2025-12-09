@@ -40,6 +40,7 @@ const config = {
       fromChannelId: Channels.NotGeneral,
       toChannelId: Channels.General,
       confirmReact: "📣",
+      announcedReact: "✅",
     },
   ],
   autoReact: [

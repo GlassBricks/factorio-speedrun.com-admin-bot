@@ -51,7 +51,7 @@ class AnnouncementRelay {
     async createAnnounceMessage(message, user) {
         this.logger.info("Creating announcement for message:", message.id);
         const srcMessage = await message.fetch();
-        this.runCatching(srcMessage.react(this.config.confirmReact));
+        this.runCatching(srcMessage.react(this.config.announcedReact));
         const dstChannel = await this.getChannel(srcMessage.guild, this.config.toChannelId);
         const dstMessage = await dstChannel.send({
             content: srcMessage.content,
