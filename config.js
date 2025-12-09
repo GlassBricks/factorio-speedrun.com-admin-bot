@@ -123,5 +123,11 @@ If %n %r reacts are received %e, ` + reelectDescription,
     unacceptIdHint: ["1377309732909355159"],
     acceptIdHint: ["1377309729885257738"],
   },
+  threadInactivityMonitor: {
+    channelId: Channels.SrcDiscussionContact,
+    cronSchedule: "0 * * * *",
+    inactivityDays: 6.5,
+    reminderMessage: "Friendly reminder: this thread has been inactive for a while. Any updates?",
+  },
 }
 export default config
