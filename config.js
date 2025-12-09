@@ -30,6 +30,7 @@ const config = {
       fromChannelId: Channels.SrcAnnouncementsStaging,
       toChannelId: Channels.SrcAnnouncements,
       confirmReact: "📣",
+      announcedReact: "✅",
     },
   ],
   voteInitiateCommands: [

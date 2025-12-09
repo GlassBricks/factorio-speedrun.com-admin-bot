@@ -50,6 +50,7 @@ export interface AnnouncementRelayConfig {
   fromChannelId: Snowflake
   toChannelId: Snowflake
   confirmReact: string
+  announcedReact: string
 }
 
 export interface AnnounceFactorioVersionConfig {
