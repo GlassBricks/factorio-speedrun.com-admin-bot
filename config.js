@@ -126,7 +126,7 @@ If %n %r reacts are received %e, ` + reelectDescription,
   threadInactivityMonitor: {
     channelId: Channels.SrcDiscussionContact,
     cronSchedule: "0 * * * *",
-    inactivityDays: 6.5,
+    inactivityDays: 6.8,
     reminderMessage: "Friendly reminder: this thread has been inactive for a while. Any updates?",
   },
 }
