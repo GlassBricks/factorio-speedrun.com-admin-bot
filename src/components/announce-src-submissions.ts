@@ -593,32 +593,47 @@ interface GameData {
   variablesById: Map<string, Variable>
 }
 
-const userCache = new Map<string, Promise<User>>()
-const gameCache = new Map<string, Promise<GameData>>()
+interface Cache<T> {
+  clear(): void
+  get(id: string): Promise<T>
+}
+
+const caches: Cache<unknown>[] = []
+
+function makeCache<T>(getById: (id: string) => Promise<T>): Cache<T> {
+  const cache = new Map<string, Promise<T>>()
+  const result: Cache<T> = {
+    clear: () => cache.clear(),
+    get(id: string): Promise<T> {
+      const existing = cache.get(id)
+      if (existing) return existing
+      const promise = getById(id).catch((e) => {
+        container.logger.error(e)
+        cache.delete(id)
+        throw e
+      })
+      cache.set(id, promise)
+      return promise
+    },
+  }
+  caches.push(result)
+  return result
+}
+
+const userCache: Cache<User> = makeCache(getUser)
+const gameCache: Cache<GameData> = makeCache(async (id) => {
+  const game = await getGame(id, { embed: "variables" })
+  const variables = new Map(game.variables.data.map((x) => [x.id, x]))
+  return { game, variablesById: variables }
+})
+
 function clearCaches() {
-  userCache.clear()
-  gameCache.clear()
+  caches.forEach((cache) => cache.clear())
 }
 
 function getUserCached(userId: string) {
-  return getCached(userId, userCache, getUser)
+  return userCache.get(userId)
 }
 function getGameCached(gameId: string) {
-  return getCached(gameId, gameCache, async (id) => {
-    const game = await getGame(id, { embed: "variables" })
-    const variables = new Map(game.variables.data.map((x) => [x.id, x]))
-    return { game, variablesById: variables }
-  })
-}
-
-function getCached<T>(id: string, cache: Map<string, Promise<T>>, getById: (id: string) => Promise<T>): Promise<T> {
-  const existing = cache.get(id)
-  if (existing) return existing
-  const promise = getById(id).catch((e) => {
-    container.logger.error(e)
-    cache.delete(id)
-    throw e
-  })
-  cache.set(id, promise)
-  return promise
+  return gameCache.get(gameId)
 }
