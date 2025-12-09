@@ -9,6 +9,7 @@ export interface Config {
   autoReact?: AutoReactConfig[]
   announceSrcSubmissions?: AnnounceSrcSubmissionsConfig
   discussionModeration?: DiscussionModerationConfig
+  threadInactivityMonitor?: ThreadInactivityMonitorConfig
 }
 
 export interface VoteInitiateCommandConfig {
@@ -94,6 +95,13 @@ export interface DiscussionModerationConfig {
   reportContextMenuIdHint?: Snowflake[]
   unacceptIdHint?: Snowflake[]
   discussAdminIdHint?: Snowflake[]
+}
+
+export interface ThreadInactivityMonitorConfig {
+  channelId: Snowflake
+  cronSchedule: string
+  inactivityDays: number
+  reminderMessage: string
 }
 
 const dev = process.env.NODE_ENV === "development"

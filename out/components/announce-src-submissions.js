@@ -458,32 +458,40 @@ async function logErrors(promise) {
 function launch(promise) {
     void logErrors(promise);
 }
-const userCache = new Map();
-const gameCache = new Map();
+const caches = [];
+function makeCache(getById) {
+    const cache = new Map();
+    const result = {
+        clear: () => cache.clear(),
+        get(id) {
+            const existing = cache.get(id);
+            if (existing)
+                return existing;
+            const promise = getById(id).catch((e) => {
+                container.logger.error(e);
+                cache.delete(id);
+                throw e;
+            });
+            cache.set(id, promise);
+            return promise;
+        },
+    };
+    caches.push(result);
+    return result;
+}
+const userCache = makeCache(getUser);
+const gameCache = makeCache(async (id) => {
+    const game = await getGame(id, { embed: "variables" });
+    const variables = new Map(game.variables.data.map((x) => [x.id, x]));
+    return { game, variablesById: variables };
+});
 function clearCaches() {
-    userCache.clear();
-    gameCache.clear();
+    caches.forEach((cache) => cache.clear());
 }
 function getUserCached(userId) {
-    return getCached(userId, userCache, getUser);
+    return userCache.get(userId);
 }
 function getGameCached(gameId) {
-    return getCached(gameId, gameCache, async (id) => {
-        const game = await getGame(id, { embed: "variables" });
-        const variables = new Map(game.variables.data.map((x) => [x.id, x]));
-        return { game, variablesById: variables };
-    });
-}
-function getCached(id, cache, getById) {
-    const existing = cache.get(id);
-    if (existing)
-        return existing;
-    const promise = getById(id).catch((e) => {
-        container.logger.error(e);
-        cache.delete(id);
-        throw e;
-    });
-    cache.set(id, promise);
-    return promise;
+    return gameCache.get(gameId);
 }
 //# sourceMappingURL=announce-src-submissions.js.map

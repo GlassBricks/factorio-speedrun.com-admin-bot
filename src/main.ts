@@ -9,6 +9,7 @@ import { setUpVoteInitiateCommand } from "./components/vote-initiate.js"
 import { setUpAnnounceFactorioVersion } from "./components/announce-factorio-version.js"
 import { setUpAnnounceSrcSubmissions } from "./components/announce-src-submissions.js"
 import { setUpAnnouncementRelay } from "./components/announcement-relay.js"
+import { setUpThreadInactivityMonitor } from "./components/thread-inactivity-monitor.js"
 
 dotEnvConfig()
 
@@ -43,6 +44,7 @@ for (const a of config.announcementRelay ?? []) {
 setUpVoteInitiateCommand(client, config.voteInitiateCommands)
 setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
 setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
+setUpThreadInactivityMonitor(client, config.threadInactivityMonitor)
 
 await syncDatabase(client.logger)
 client.on("applicationCommandRegistriesRegistered", () => {

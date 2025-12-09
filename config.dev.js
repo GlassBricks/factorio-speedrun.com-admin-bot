@@ -70,5 +70,11 @@ const config = {
     tempBanDays: 1 / 24 / 60, // 1 minute
     tempBanNotify: [Roles.Notif],
   },
+  threadInactivityMonitor: {
+    channelId: Channels.NotGeneral,
+    cronSchedule: "*/30 * * * * *",
+    inactivityDays: 1 / 24 / 60,
+    reminderMessage: "Friendly reminder: this thread has been inactive for a while. Any updates?",
+  },
 }
 export default config
