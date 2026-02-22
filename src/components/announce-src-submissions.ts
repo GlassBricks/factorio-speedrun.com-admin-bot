@@ -23,9 +23,14 @@ import { createLogger } from "../logger.js"
 import twitchClient from "../twitch.js"
 import { assertNever, botCanSendInChannel, formatDuration, getAllRunsSince } from "../utils.js"
 import { formatVerificationStatus, renderEmbed } from "./embed-fields.js"
+import type { MessageEditActor } from "./message-edit-actor.js"
 
-export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcSubmissionsConfig | undefined) {
-  if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config))
+export function setUpAnnounceSrcSubmissions(
+  client: Client,
+  config: AnnounceSrcSubmissionsConfig | undefined,
+  actor: MessageEditActor,
+) {
+  if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config, actor))
 }
 
 const MESSAGE_VERSION = 15
@@ -143,7 +148,7 @@ async function findNewPlayers(gameIds: string[], players: Player[], excludedRunI
   return result
 }
 
-function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
+function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig, actor: MessageEditActor) {
   scheduleJob("processSrcSubmissions", config.cronSchedule, () => logErrors(run())).invoke()
 
   const gameIds = config.games.map((x) => x.id)
@@ -231,11 +236,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
           dbRun.messageId = message.id
           dbRun.messageChannelId = message.channelId
         } else {
-          logger.debug("Editing message", srcRun.id)
-          message ??= await fetchDiscordMessage(dbRun)
-          if (message) {
-            await message.edit({ content: null, embeds: [embed], flags: "0" })
-          }
+          actor.enqueue(srcRun.id)
         }
         dbRun.messageVersion = MESSAGE_VERSION
       } else {

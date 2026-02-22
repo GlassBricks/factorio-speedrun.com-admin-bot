@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest"
 import { ReplayVerificationStatus } from "../db/replay-verification.js"
 import type { RunData } from "../db/run-data.js"
-import { SrcRunStatus } from "../db/src-run-status.js"
+import { SrcRunStatus } from "../db/run-data.js"
 import { formatVerificationStatus, renderEmbed, RenderEmbedInput } from "./embed-fields.js"
 
 describe("formatVerificationStatus", () => {

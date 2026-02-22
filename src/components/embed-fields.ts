@@ -1,6 +1,6 @@
 import { APIEmbedField, EmbedBuilder, HexColorString } from "discord.js"
 import { ReplayVerificationStatus } from "../db/replay-verification.js"
-import { SrcRunStatus } from "../db/src-run-status.js"
+import { SrcRunStatus } from "../db/run-data.js"
 import type { RunData } from "../db/run-data.js"
 
 const ordinalSuffixes = ["th", "st", "nd", "rd"]

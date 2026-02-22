@@ -34,7 +34,7 @@ function makeDeps(overrides: Partial<RunnerStatusDeps> = {}): RunnerStatusDeps {
   return {
     authToken: AUTH_TOKEN,
     upsertVerification: vi.fn().mockResolvedValue({}),
-    editRunEmbed: vi.fn().mockResolvedValue(undefined),
+    enqueueEdit: vi.fn(),
     ...overrides,
   }
 }
@@ -58,6 +58,20 @@ describe("createRunnerStatusServer", () => {
     expect(response.statusCode).toBe(200)
     expect(response.json()).toEqual({ ok: true })
     expect(deps.upsertVerification).toHaveBeenCalledWith("run-abc", "passed", undefined)
+  })
+
+  it("calls enqueueEdit with runId after upsert", async () => {
+    const deps = makeDeps()
+    const server = createRunnerStatusServer(deps)
+
+    await server.inject({
+      method: "POST",
+      url: "/api/runs/run-abc/status",
+      headers: authHeader(),
+      payload: { status: "passed" },
+    })
+
+    expect(deps.enqueueEdit).toHaveBeenCalledWith("run-abc")
   })
 
   it("returns 401 when Authorization header is missing", async () => {
@@ -135,22 +149,5 @@ describe("createRunnerStatusServer", () => {
     expect(first.statusCode).toBe(200)
     expect(second.statusCode).toBe(200)
     expect(deps.upsertVerification).toHaveBeenCalledTimes(2)
-  })
-
-  it("returns 200 even when editRunEmbed throws", async () => {
-    const deps = makeDeps({
-      editRunEmbed: vi.fn().mockRejectedValue(new Error("discord down")),
-    })
-    const server = createRunnerStatusServer(deps)
-
-    const response = await server.inject({
-      method: "POST",
-      url: "/api/runs/run-edit-fail/status",
-      headers: authHeader(),
-      payload: { status: "passed" },
-    })
-
-    expect(response.statusCode).toBe(200)
-    expect(response.json()).toEqual({ ok: true })
   })
 })
