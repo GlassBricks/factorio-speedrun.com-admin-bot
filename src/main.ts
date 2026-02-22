@@ -10,6 +10,7 @@ import { setUpAnnounceFactorioVersion } from "./components/announce-factorio-ver
 import { setUpAnnounceSrcSubmissions } from "./components/announce-src-submissions.js"
 import { setUpAnnouncementRelay } from "./components/announcement-relay.js"
 import { setUpThreadInactivityMonitor } from "./components/thread-inactivity-monitor.js"
+import { setUpRunnerStatus } from "./components/runner-status.js"
 
 dotEnvConfig()
 
@@ -46,6 +47,7 @@ setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion)
 setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions)
 setUpThreadInactivityMonitor(client, config.threadInactivityMonitor)
 
+await setUpRunnerStatus(client, config.runnerStatus)
 await syncDatabase(client.logger)
 client.on("applicationCommandRegistriesRegistered", () => {
   for (const [name, command] of client.application?.commands.cache ?? []) {
