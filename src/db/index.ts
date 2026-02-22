@@ -1,6 +1,9 @@
-import { Column, CreatedAt, Model, PrimaryKey, Sequelize, Table, Index } from "sequelize-typescript"
+import { Column, CreatedAt, Index, Model, PrimaryKey, Sequelize, Table } from "sequelize-typescript"
 import { Snowflake } from "discord.js"
 import { CreationOptional, InferAttributes, InferCreationAttributes } from "sequelize"
+import { ReplayVerification } from "./replay-verification.js"
+
+export { ReplayVerification, ReplayVerificationStatus } from "./replay-verification.js"
 
 // for vote-initiate command
 @Table({ paranoid: true })
@@ -135,37 +138,6 @@ export class DiscussionBan extends Model<InferAttributes<DiscussionBan>, InferCr
 
   @Column
   declare reason?: string
-}
-
-export enum ReplayVerificationStatus {
-  Pending = "pending",
-  Running = "running",
-  Passed = "passed",
-  NeedsReview = "needs_review",
-  Failed = "failed",
-  Error = "error",
-}
-
-@Table
-export class ReplayVerification extends Model<
-  InferAttributes<ReplayVerification>,
-  InferCreationAttributes<ReplayVerification>
-> {
-  @PrimaryKey
-  @Column
-  declare runId: string
-
-  @Column
-  declare status: ReplayVerificationStatus
-
-  @Column
-  declare message: CreationOptional<string | null>
-
-  @CreatedAt
-  declare createdAt: CreationOptional<Date>
-
-  @Column
-  declare updatedAt: CreationOptional<Date>
 }
 
 const dev = process.env.NODE_ENV === "development"

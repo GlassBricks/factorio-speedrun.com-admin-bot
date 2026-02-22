@@ -5,5 +5,5 @@ export default defineConfig({
   test: {
     globals: true,
   },
-  plugins: [swc.vite()],
+  plugins: [swc.vite({ tsconfigFile: "./tsconfig.json" })],
 })
