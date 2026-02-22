@@ -12,8 +12,8 @@ import {
   Variable,
 } from "src-ts"
 import { SrcRun, SrcRunStatus } from "../db/index.js"
+import { ReplayVerification } from "../db/replay-verification.js"
 import {
-  APIEmbedField,
   Client,
   Embed,
   EmbedBuilder,
@@ -27,10 +27,10 @@ import {
   assertNever,
   botCanSendInChannel,
   formatDuration,
-  formatPlace,
   getAllRunsSince,
   statusStrToStatus,
 } from "../utils.js"
+import { formatVerificationStatus, getEmbedFields, RunMessageParts } from "./embed-fields.js"
 import { createLogger } from "../logger.js"
 import { scheduleJob } from "node-schedule"
 import { parse } from "iso8601-duration"
@@ -44,7 +44,7 @@ export function setUpAnnounceSrcSubmissions(client: Client, config: AnnounceSrcS
 /**
  * Update this if the message format changes
  */
-const MESSAGE_VERSION = 13
+const MESSAGE_VERSION = 14
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -120,20 +120,6 @@ async function getActualLeaderboard(game: GameData, run: RunWithEmbeds): Promise
   return await getLeaderboard(run.game, run.category, leaderboardRunVars, { embed: "category" })
 }
 
-interface RunMessageParts {
-  title: string
-  description: string
-  thumbnail: string
-  timestamp: Date
-  color: HexColorString
-
-  firstTimeSubmissionPlayers: string[]
-  isChallengerRun: boolean
-  place: number | undefined
-  videoProof: string
-  status: string
-}
-
 /**
  * Does not include: videoProof, status
  *
@@ -199,60 +185,6 @@ async function findNewPlayers(gameIds: string[], players: Player[], excludedRunI
     }
   }
   return result
-}
-
-function getEmbedFields(parts: Partial<RunMessageParts>, fromExisting?: APIEmbedField[]): APIEmbedField[] {
-  function field(
-    name: string,
-    keys: (keyof RunMessageParts)[],
-    valueFromParts: string | false | undefined,
-    inline: boolean = false,
-  ): APIEmbedField | undefined {
-    if (!keys.every((k) => k in parts)) {
-      return fromExisting?.find((x) => x.name === name)
-    } else if (!valueFromParts) {
-      return undefined
-    } else
-      return {
-        name,
-        value: valueFromParts,
-        inline,
-      }
-  }
-
-  return [
-    field(
-      "🎉 First time submission",
-      ["firstTimeSubmissionPlayers"],
-      parts.firstTimeSubmissionPlayers?.join(", "),
-      true,
-    ),
-    field(
-      "🏆 Challenger run",
-      ["isChallengerRun", "place"],
-      parts.isChallengerRun && parts.place !== undefined && `May be ${getPlaceText(parts.place)}!`,
-      true,
-    ),
-    field(
-      "Place",
-      ["place", "isChallengerRun"],
-      !parts.isChallengerRun && parts.place !== undefined && getPlaceText(parts.place),
-      true,
-    ),
-    field("Video proof", ["videoProof"], parts.videoProof),
-    field("Status", ["status"], parts.status, true),
-  ].filter((x): x is APIEmbedField => !!x)
-}
-function getPlaceText(place: number | null) {
-  return place === null
-    ? "Unknown"
-    : place === 1
-      ? "🥇 A New World Record"
-      : place === 2
-        ? "🥈"
-        : place === 3
-          ? "🥉"
-          : formatPlace(place)
 }
 
 function isEmptyObject(obj: Record<string, unknown>) {
@@ -338,6 +270,13 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig) {
         if (newPlayers.length > 0) {
           toEditParts.firstTimeSubmissionPlayers = newPlayers
         }
+      }
+
+      const verification = await ReplayVerification.findByPk(srcRun.id)
+      if (verification) {
+        toEditParts.replayVerification = formatVerificationStatus(verification.status, verification.message)
+      } else if (editAllParts) {
+        toEditParts.replayVerification = undefined
       }
 
       if (!isEmptyObject(toEditParts)) {
