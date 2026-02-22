@@ -7,6 +7,7 @@ A Discord bot for the Factorio speedrunning community that integrates with speed
 - `npm run build` - Clean and compile TypeScript
 - `npm run dev` - Run with auto-reload (requires prior build)
 - `npm run watch` - Watch mode for TypeScript compilation
+- `npm run lint`, `npm run lint:fix`
 - `npm run check` - Linting and type checking
 
 ## Architecture
@@ -28,3 +29,8 @@ Components in `src/components/` are major features that self-register on client 
 ### Message Version System
 
 `announce-src-submissions.ts` uses a `MESSAGE_VERSION` constant. Increment it when the embed format changes to trigger updates to all existing messages.
+
+## Code
+
+- Run eslint after changes
+- Run prettier fix after changes

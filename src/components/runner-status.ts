@@ -1,12 +1,11 @@
+import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox"
+import { container } from "@sapphire/framework"
+import { Type } from "@sinclair/typebox"
 import { Client } from "discord.js"
 import fastify, { FastifyInstance } from "fastify"
-import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox"
-import { Type } from "@sinclair/typebox"
-import { ReplayVerification, ReplayVerificationStatus } from "../db/index.js"
-import { SrcRun } from "../db/index.js"
-import { RunnerStatusConfig } from "../config-file.js"
+import { RunnerStatusServerConfig } from "../config-file.js"
+import { ReplayVerification, ReplayVerificationStatus, SrcRun } from "../db/index.js"
 import { createLogger } from "../logger.js"
-import { container } from "@sapphire/framework"
 
 const logger = createLogger("[RunnerStatus]")
 
@@ -55,7 +54,7 @@ export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstanc
     },
   )
 
-  return server as unknown as FastifyInstance
+  return server
 }
 
 async function buildEditRunEmbed(runId: string): Promise<void> {
@@ -75,7 +74,7 @@ async function buildEditRunEmbed(runId: string): Promise<void> {
   }
 }
 
-export async function setUpRunnerStatus(client: Client, config: RunnerStatusConfig | undefined): Promise<void> {
+export async function setUpRunnerStatus(_client: Client, config: RunnerStatusServerConfig | undefined): Promise<void> {
   if (!config) return
 
   const deps: RunnerStatusDeps = {

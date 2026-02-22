@@ -10,7 +10,7 @@ export interface Config {
   announceSrcSubmissions?: AnnounceSrcSubmissionsConfig
   discussionModeration?: DiscussionModerationConfig
   threadInactivityMonitor?: ThreadInactivityMonitorConfig
-  runnerStatus?: RunnerStatusConfig
+  runnerStatus?: RunnerStatusServerConfig
 }
 
 export interface VoteInitiateCommandConfig {
@@ -106,7 +106,7 @@ export interface ThreadInactivityMonitorConfig {
   reminderMessage: string
 }
 
-export interface RunnerStatusConfig {
+export interface RunnerStatusServerConfig {
   port: number
   host?: string
   authToken: string

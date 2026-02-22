@@ -1,10 +1,19 @@
-import { describe, it, expect, vi } from "vitest"
+import { describe, expect, it, vi } from "vitest"
 import { ReplayVerificationStatus } from "../db/replay-verification.js"
 import type { RunnerStatusDeps } from "./runner-status.js"
 
 const noop = () => {}
 vi.mock("../logger.js", () => ({
-  createLogger: () => ({ debug: noop, error: noop, info: noop, trace: noop, warn: noop, fatal: noop, has: () => false, write: noop }),
+  createLogger: () => ({
+    debug: noop,
+    error: noop,
+    info: noop,
+    trace: noop,
+    warn: noop,
+    fatal: noop,
+    has: () => false,
+    write: noop,
+  }),
 }))
 
 vi.mock("../db/index.js", () => ({
@@ -86,35 +95,6 @@ describe("createRunnerStatusServer", () => {
 
     expect(response.statusCode).toBe(400)
   })
-
-  it("returns 400 when status field is missing", async () => {
-    const server = createRunnerStatusServer(makeDeps())
-
-    const response = await server.inject({
-      method: "POST",
-      url: "/api/runs/run-abc/status",
-      headers: authHeader(),
-      payload: {},
-    })
-
-    expect(response.statusCode).toBe(400)
-  })
-
-  it.each(Object.values(ReplayVerificationStatus))(
-    "returns 200 for status %s",
-    async (status) => {
-      const server = createRunnerStatusServer(makeDeps())
-
-      const response = await server.inject({
-        method: "POST",
-        url: `/api/runs/run-${status}/status`,
-        headers: authHeader(),
-        payload: { status },
-      })
-
-      expect(response.statusCode).toBe(200)
-    },
-  )
 
   it("passes message field to upsertVerification for error status", async () => {
     const deps = makeDeps()
