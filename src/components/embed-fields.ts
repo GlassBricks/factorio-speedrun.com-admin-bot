@@ -1,5 +1,7 @@
-import { APIEmbedField, HexColorString } from "discord.js"
+import { APIEmbedField, EmbedBuilder, HexColorString } from "discord.js"
 import { ReplayVerificationStatus } from "../db/replay-verification.js"
+import { SrcRunStatus } from "../db/src-run-status.js"
+import type { RunData } from "../db/run-data.js"
 
 const ordinalSuffixes = ["th", "st", "nd", "rd"]
 
@@ -10,19 +12,16 @@ function formatPlace(place: number): string {
   return `${place}${suffix}`
 }
 
-export interface RunMessageParts {
-  title: string
-  description: string
-  thumbnail: string
-  timestamp: Date
-  color: HexColorString
-
-  firstTimeSubmissionPlayers: string[]
-  isChallengerRun: boolean
-  place: number | undefined
-  videoProof: string
-  status: string
-  replayVerification?: string
+function getPlaceText(place: number | null) {
+  return place === null
+    ? "Unknown"
+    : place === 1
+      ? "🥇 A New World Record"
+      : place === 2
+        ? "🥈"
+        : place === 3
+          ? "🥉"
+          : formatPlace(place)
 }
 
 export function formatVerificationStatus(status: ReplayVerificationStatus, message?: string | null): string {
@@ -42,58 +41,83 @@ export function formatVerificationStatus(status: ReplayVerificationStatus, messa
   }
 }
 
-function getPlaceText(place: number | null) {
-  return place === null
-    ? "Unknown"
-    : place === 1
-      ? "🥇 A New World Record"
-      : place === 2
-        ? "🥈"
-        : place === 3
-          ? "🥉"
-          : formatPlace(place)
+export function statusColor(status: SrcRunStatus): HexColorString {
+  switch (status) {
+    case SrcRunStatus.New:
+      return "#ffee20"
+    case SrcRunStatus.Verified:
+      return "#20ff20"
+    case SrcRunStatus.SelfVerified:
+      return "#75ff94"
+    case SrcRunStatus.Rejected:
+      return "#ff5050"
+    case SrcRunStatus.Unknown:
+      return "#ffee20"
+  }
 }
 
-export function getEmbedFields(parts: Partial<RunMessageParts>, fromExisting?: APIEmbedField[]): APIEmbedField[] {
-  function field(
-    name: string,
-    keys: (keyof RunMessageParts)[],
-    valueFromParts: string | false | undefined,
-    inline: boolean = false,
-  ): APIEmbedField | undefined {
-    if (!keys.every((k) => k in parts)) {
-      return fromExisting?.find((x) => x.name === name)
-    } else if (!valueFromParts) {
-      return undefined
-    } else
-      return {
-        name,
-        value: valueFromParts,
-        inline,
-      }
+export interface RenderEmbedInput {
+  runData: RunData
+  runId: string
+  submissionTime: Date
+  lastStatus: SrcRunStatus
+  videoProof: string
+  statusText: string
+  replayVerification: string | null
+}
+
+export function renderEmbed(input: RenderEmbedInput): EmbedBuilder {
+  const { runData, runId, submissionTime, lastStatus, videoProof, statusText, replayVerification } = input
+
+  const playersStr =
+    runData.players.length <= 4
+      ? runData.players.join(", ")
+      : runData.players.slice(0, 3).join(", ") + `, and ${runData.players.length - 3} more`
+
+  const weblink = `https://www.speedrun.com/run/${runId}`
+  const description = `## ${runData.gameName} | [${runData.categoryName} by ${playersStr} in ${runData.time}](${weblink})`
+
+  const fields: APIEmbedField[] = []
+
+  if (runData.firstTimeSubmissionPlayers.length > 0) {
+    fields.push({
+      name: "🎉 First time submission",
+      value: runData.firstTimeSubmissionPlayers.join(", "),
+      inline: true,
+    })
   }
 
-  return [
-    field(
-      "🎉 First time submission",
-      ["firstTimeSubmissionPlayers"],
-      parts.firstTimeSubmissionPlayers?.join(", "),
-      true,
-    ),
-    field(
-      "🏆 Challenger run",
-      ["isChallengerRun", "place"],
-      parts.isChallengerRun && parts.place !== undefined && `May be ${getPlaceText(parts.place)}!`,
-      true,
-    ),
-    field(
-      "Place",
-      ["place", "isChallengerRun"],
-      !parts.isChallengerRun && parts.place !== undefined && getPlaceText(parts.place),
-      true,
-    ),
-    field("Video proof", ["videoProof"], parts.videoProof),
-    field("Status", ["status"], parts.status, true),
-    field("Replay verification", ["replayVerification"], parts.replayVerification, true),
-  ].filter((x): x is APIEmbedField => !!x)
+  if (runData.isChallengerRun && runData.place !== undefined) {
+    fields.push({
+      name: "🏆 Challenger run",
+      value: `May be ${getPlaceText(runData.place)}!`,
+      inline: true,
+    })
+  } else if (runData.place !== undefined) {
+    fields.push({
+      name: "Place",
+      value: getPlaceText(runData.place),
+      inline: true,
+    })
+  }
+
+  if (videoProof) {
+    fields.push({ name: "Video proof", value: videoProof, inline: false })
+  }
+
+  if (statusText) {
+    fields.push({ name: "Status", value: statusText, inline: true })
+  }
+
+  if (replayVerification) {
+    fields.push({ name: "Replay verification", value: replayVerification, inline: true })
+  }
+
+  return new EmbedBuilder()
+    .setTitle("Run submission")
+    .setDescription(description)
+    .setThumbnail(`https://www.speedrun.com/static/game/${runData.gameId}/cover.png`)
+    .setTimestamp(submissionTime)
+    .setColor(statusColor(lastStatus))
+    .setFields(fields)
 }

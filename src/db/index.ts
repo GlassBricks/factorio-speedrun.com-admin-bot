@@ -1,9 +1,10 @@
-import { Column, CreatedAt, Index, Model, PrimaryKey, Sequelize, Table } from "sequelize-typescript"
 import { Snowflake } from "discord.js"
-import { CreationOptional, InferAttributes, InferCreationAttributes } from "sequelize"
+import { CreationOptional, DataTypes, InferAttributes, InferCreationAttributes } from "sequelize"
+import { Column, CreatedAt, Index, Model, PrimaryKey, Sequelize, Table } from "sequelize-typescript"
 import { ReplayVerification } from "./replay-verification.js"
-
+import { RunData, SrcRunStatus } from "./run-data.js"
 export { ReplayVerification, ReplayVerificationStatus } from "./replay-verification.js"
+export { SrcRunStatus, type RunData } from "./run-data.js"
 
 // for vote-initiate command
 @Table({ paranoid: true })
@@ -41,13 +42,6 @@ export class KnownFactorioVersion extends Model<
   }
 }
 
-export enum SrcRunStatus {
-  New = 0,
-  Verified = 1,
-  Rejected = 2,
-  Unknown = 37,
-}
-
 @Table
 export class AnnounceMessage extends Model<InferAttributes<AnnounceMessage>, InferCreationAttributes<AnnounceMessage>> {
   @PrimaryKey
@@ -76,10 +70,10 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   declare submissionTime: Date
 
   @Column
-  declare messageChannelId: Snowflake
+  declare messageChannelId: CreationOptional<Snowflake | null>
 
   @Column
-  declare messageId: Snowflake
+  declare messageId: CreationOptional<Snowflake | null>
 
   @Column
   declare messageVersion: number
@@ -87,7 +81,15 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   @Column
   declare videoProof?: string
 
-  // joined by comma.
+  @Column
+  declare videoProofText: CreationOptional<string | null>
+
+  @Column
+  declare statusText: CreationOptional<string | null>
+
+  @Column(DataTypes.JSON)
+  declare runData: CreationOptional<RunData | null>
+
   @Column
   declare newPlayerAnnounceChecked: boolean
 }
@@ -145,5 +147,13 @@ export const sequelize = new Sequelize({
   dialect: "sqlite",
   storage: dev ? ":memory:" : "database.sqlite",
   // storage: "database.sqlite",
-  models: [VoteInitiateMessage, KnownFactorioVersion, SrcRun, AnnounceMessage, MessageReport, DiscussionBan, ReplayVerification],
+  models: [
+    VoteInitiateMessage,
+    KnownFactorioVersion,
+    SrcRun,
+    AnnounceMessage,
+    MessageReport,
+    DiscussionBan,
+    ReplayVerification,
+  ],
 })

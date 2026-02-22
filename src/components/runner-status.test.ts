@@ -22,6 +22,10 @@ vi.mock("../db/index.js", () => ({
   SrcRun: {},
 }))
 
+vi.mock("./announce-src-submissions.js", () => ({
+  fetchDiscordMessage: vi.fn(),
+}))
+
 const { createRunnerStatusServer } = await import("./runner-status.js")
 
 const AUTH_TOKEN = "test-secret"

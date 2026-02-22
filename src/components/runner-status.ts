@@ -1,11 +1,12 @@
 import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox"
-import { container } from "@sapphire/framework"
 import { Type } from "@sinclair/typebox"
 import { Client } from "discord.js"
 import fastify, { FastifyInstance } from "fastify"
 import { RunnerStatusServerConfig } from "../config-file.js"
 import { ReplayVerification, ReplayVerificationStatus, SrcRun } from "../db/index.js"
 import { createLogger } from "../logger.js"
+import { formatVerificationStatus, renderEmbed } from "./embed-fields.js"
+import { fetchDiscordMessage } from "./announce-src-submissions.js"
 
 const logger = createLogger("[RunnerStatus]")
 
@@ -59,16 +60,26 @@ export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstanc
 
 async function buildEditRunEmbed(runId: string): Promise<void> {
   const srcRun = await SrcRun.findByPk(runId)
-  if (!srcRun) {
-    logger.debug("No SrcRun found for runId, skipping embed edit:", runId)
+  if (!srcRun?.runData) {
+    logger.debug("No SrcRun or runData found for runId, skipping embed edit:", runId)
     return
   }
 
+  const verification = await ReplayVerification.findByPk(runId)
+  const embed = renderEmbed({
+    runData: srcRun.runData,
+    runId: srcRun.runId,
+    submissionTime: srcRun.submissionTime,
+    lastStatus: srcRun.lastStatus,
+    videoProof: srcRun.videoProofText ?? "None found",
+    statusText: srcRun.statusText ?? "⏳ new",
+    replayVerification: verification ? formatVerificationStatus(verification.status, verification.message) : null,
+  })
+
   try {
-    const channel = await container.client.channels.fetch(srcRun.messageChannelId)
-    if (!channel?.isTextBased()) return
-    const message = await channel.messages.fetch(srcRun.messageId)
-    await message.edit({ embeds: message.embeds })
+    const message = await fetchDiscordMessage(srcRun)
+    if (!message) return
+    await message.edit({ embeds: [embed] })
   } catch (err) {
     logger.warn("Failed to fetch or edit message for run:", runId, err)
   }
