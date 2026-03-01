@@ -34,6 +34,7 @@ function makeDeps(overrides: Partial<RunnerStatusDeps> = {}): RunnerStatusDeps {
   return {
     authToken: AUTH_TOKEN,
     upsertVerification: vi.fn().mockResolvedValue({}),
+    destroyVerification: vi.fn().mockResolvedValue(undefined),
     enqueueEdit: vi.fn(),
     touchHeartbeat: vi.fn().mockResolvedValue(undefined),
     ...overrides,
@@ -150,6 +151,35 @@ describe("createRunnerStatusServer", () => {
     expect(first.statusCode).toBe(200)
     expect(second.statusCode).toBe(200)
     expect(deps.upsertVerification).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("delete status endpoint", () => {
+  it("returns 200 and calls destroyVerification and enqueueEdit", async () => {
+    const deps = makeDeps()
+    const server = createRunnerStatusServer(deps)
+
+    const response = await server.inject({
+      method: "DELETE",
+      url: "/api/runs/run-abc/status",
+      headers: authHeader(),
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ ok: true })
+    expect(deps.destroyVerification).toHaveBeenCalledWith("run-abc")
+    expect(deps.enqueueEdit).toHaveBeenCalledWith("run-abc")
+  })
+
+  it("returns 401 without auth", async () => {
+    const server = createRunnerStatusServer(makeDeps())
+
+    const response = await server.inject({
+      method: "DELETE",
+      url: "/api/runs/run-abc/status",
+    })
+
+    expect(response.statusCode).toBe(401)
   })
 })
 
