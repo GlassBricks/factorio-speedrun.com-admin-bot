@@ -31,6 +31,16 @@ const RunIdParams = Type.Object({
   runId: Type.String({ minLength: 1 }),
 })
 
+const BulkStatusBody = Type.Object({
+  runs: Type.Array(
+    Type.Object({
+      runId: Type.String({ minLength: 1 }),
+      status: Type.Enum(ReplayVerificationStatus),
+      message: Type.Optional(Type.String()),
+    }),
+  ),
+})
+
 const HeartbeatBody = Type.Object({
   runIds: Type.Array(Type.String({ minLength: 1 })),
 })
@@ -58,6 +68,14 @@ export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstanc
       return reply.status(200).send({ ok: true })
     },
   )
+
+  server.post("/api/runs/status", { schema: { body: BulkStatusBody } }, async (request, reply) => {
+    for (const run of request.body.runs) {
+      await deps.upsertVerification(run.runId, run.status, run.message)
+      deps.enqueueEdit(run.runId)
+    }
+    return reply.status(200).send({ ok: true })
+  })
 
   server.post("/api/runs/heartbeat", { schema: { body: HeartbeatBody } }, async (request, reply) => {
     await deps.touchHeartbeat(request.body.runIds)

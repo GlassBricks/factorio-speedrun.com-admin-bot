@@ -154,6 +154,74 @@ describe("createRunnerStatusServer", () => {
   })
 })
 
+describe("bulk status endpoint", () => {
+  it("returns 200 and processes multiple runs", async () => {
+    const deps = makeDeps()
+    const server = createRunnerStatusServer(deps)
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/runs/status",
+      headers: authHeader(),
+      payload: {
+        runs: [
+          { runId: "run-1", status: "passed" },
+          { runId: "run-2", status: "error", message: "timeout" },
+        ],
+      },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ ok: true })
+    expect(deps.upsertVerification).toHaveBeenCalledTimes(2)
+    expect(deps.upsertVerification).toHaveBeenCalledWith("run-1", "passed", undefined)
+    expect(deps.upsertVerification).toHaveBeenCalledWith("run-2", "error", "timeout")
+    expect(deps.enqueueEdit).toHaveBeenCalledWith("run-1")
+    expect(deps.enqueueEdit).toHaveBeenCalledWith("run-2")
+  })
+
+  it("returns 401 without auth", async () => {
+    const server = createRunnerStatusServer(makeDeps())
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/runs/status",
+      payload: { runs: [{ runId: "run-1", status: "passed" }] },
+    })
+
+    expect(response.statusCode).toBe(401)
+  })
+
+  it("returns 200 with empty array", async () => {
+    const deps = makeDeps()
+    const server = createRunnerStatusServer(deps)
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/runs/status",
+      headers: authHeader(),
+      payload: { runs: [] },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(deps.upsertVerification).not.toHaveBeenCalled()
+    expect(deps.enqueueEdit).not.toHaveBeenCalled()
+  })
+
+  it("returns 400 when a run has invalid status", async () => {
+    const server = createRunnerStatusServer(makeDeps())
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/runs/status",
+      headers: authHeader(),
+      payload: { runs: [{ runId: "run-1", status: "bogus" }] },
+    })
+
+    expect(response.statusCode).toBe(400)
+  })
+})
+
 describe("heartbeat endpoint", () => {
   it("returns 200 and calls touchHeartbeat with run IDs", async () => {
     const deps = makeDeps()
