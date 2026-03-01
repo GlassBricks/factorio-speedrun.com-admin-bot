@@ -22,7 +22,7 @@ import type { RunData } from "../db/run-data.js"
 import { createLogger } from "../logger.js"
 import twitchClient from "../twitch.js"
 import { assertNever, botCanSendInChannel, formatDuration, getAllRunsSince } from "../utils.js"
-import { formatVerificationStatus, renderEmbed } from "./embed-fields.js"
+import { renderEmbed, resolveVerificationDisplay } from "./embed-fields.js"
 import type { MessageEditActor } from "./message-edit-actor.js"
 
 export function setUpAnnounceSrcSubmissions(
@@ -33,7 +33,7 @@ export function setUpAnnounceSrcSubmissions(
   if (config) client.once(Events.ClientReady, (readyClient) => setup(readyClient, config, actor))
 }
 
-const MESSAGE_VERSION = 15
+const MESSAGE_VERSION = 16
 
 const runEmbeds = "players"
 type RunWithEmbeds = Run<typeof runEmbeds>
@@ -267,7 +267,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig, actor
       lastStatus: dbRun.lastStatus,
       videoProof: dbRun.videoProofText ?? "None found",
       statusText: dbRun.statusText ?? "⏳ new",
-      replayVerification: verification ? formatVerificationStatus(verification.status, verification.message) : null,
+      replayVerification: resolveVerificationDisplay(verification),
     })
   }
 

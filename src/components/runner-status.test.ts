@@ -35,6 +35,8 @@ function makeDeps(overrides: Partial<RunnerStatusDeps> = {}): RunnerStatusDeps {
     authToken: AUTH_TOKEN,
     upsertVerification: vi.fn().mockResolvedValue({}),
     enqueueEdit: vi.fn(),
+    touchHeartbeat: vi.fn().mockResolvedValue(undefined),
+    sweepStale: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
 }
@@ -149,5 +151,64 @@ describe("createRunnerStatusServer", () => {
     expect(first.statusCode).toBe(200)
     expect(second.statusCode).toBe(200)
     expect(deps.upsertVerification).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe("heartbeat endpoint", () => {
+  it("returns 200 and calls touchHeartbeat with run IDs", async () => {
+    const deps = makeDeps()
+    const server = createRunnerStatusServer(deps)
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/runs/heartbeat",
+      headers: authHeader(),
+      payload: { runIds: ["run-1", "run-2"] },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(response.json()).toEqual({ ok: true })
+    expect(deps.touchHeartbeat).toHaveBeenCalledWith(["run-1", "run-2"])
+  })
+
+  it("returns 200 with empty array", async () => {
+    const deps = makeDeps()
+    const server = createRunnerStatusServer(deps)
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/runs/heartbeat",
+      headers: authHeader(),
+      payload: { runIds: [] },
+    })
+
+    expect(response.statusCode).toBe(200)
+    expect(deps.touchHeartbeat).toHaveBeenCalledWith([])
+  })
+
+  it("returns 401 without auth", async () => {
+    const server = createRunnerStatusServer(makeDeps())
+
+    const response = await server.inject({
+      method: "POST",
+      url: "/api/runs/heartbeat",
+      payload: { runIds: ["run-1"] },
+    })
+
+    expect(response.statusCode).toBe(401)
+  })
+
+  it("does not trigger enqueueEdit", async () => {
+    const deps = makeDeps()
+    const server = createRunnerStatusServer(deps)
+
+    await server.inject({
+      method: "POST",
+      url: "/api/runs/heartbeat",
+      headers: authHeader(),
+      payload: { runIds: ["run-1"] },
+    })
+
+    expect(deps.enqueueEdit).not.toHaveBeenCalled()
   })
 })

@@ -1,7 +1,7 @@
 import { ReplayVerification } from "../db/replay-verification.js"
 import { SrcRun } from "../db/index.js"
 import { createLogger } from "../logger.js"
-import { formatVerificationStatus, renderEmbed } from "./embed-fields.js"
+import { renderEmbed, resolveVerificationDisplay } from "./embed-fields.js"
 import { fetchDiscordMessage } from "./announce-src-submissions.js"
 
 const logger = createLogger("[MessageEditActor]")
@@ -45,7 +45,7 @@ export class MessageEditActor {
         lastStatus: srcRun.lastStatus,
         videoProof: srcRun.videoProofText ?? "None found",
         statusText: srcRun.statusText ?? "⏳ new",
-        replayVerification: verification ? formatVerificationStatus(verification.status, verification.message) : null,
+        replayVerification: resolveVerificationDisplay(verification),
       })
 
       const message = await fetchDiscordMessage(srcRun)

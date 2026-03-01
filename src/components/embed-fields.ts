@@ -1,7 +1,27 @@
 import { APIEmbedField, EmbedBuilder, HexColorString } from "discord.js"
-import { ReplayVerificationStatus } from "../db/replay-verification.js"
+import { ReplayVerification, ReplayVerificationStatus } from "../db/replay-verification.js"
 import { SrcRunStatus } from "../db/run-data.js"
 import type { RunData } from "../db/run-data.js"
+
+export const STALENESS_THRESHOLD_MS = 30 * 60 * 1000
+
+const NOT_YET_RUN = "🔍 Not yet run"
+
+function isFinalStatus(status: ReplayVerificationStatus): boolean {
+  return (
+    status === ReplayVerificationStatus.Passed ||
+    status === ReplayVerificationStatus.NeedsReview ||
+    status === ReplayVerificationStatus.Failed ||
+    status === ReplayVerificationStatus.Error
+  )
+}
+
+export function resolveVerificationDisplay(verification: ReplayVerification | null): string {
+  if (!verification) return NOT_YET_RUN
+  if (!isFinalStatus(verification.status) && Date.now() - verification.updatedAt.getTime() > STALENESS_THRESHOLD_MS)
+    return NOT_YET_RUN
+  return formatVerificationStatus(verification.status, verification.message)
+}
 
 const ordinalSuffixes = ["th", "st", "nd", "rd"]
 
@@ -63,7 +83,7 @@ export interface RenderEmbedInput {
   lastStatus: SrcRunStatus
   videoProof: string
   statusText: string
-  replayVerification: string | null
+  replayVerification: string
 }
 
 export function renderEmbed(input: RenderEmbedInput): EmbedBuilder {
@@ -109,9 +129,7 @@ export function renderEmbed(input: RenderEmbedInput): EmbedBuilder {
     fields.push({ name: "Status", value: statusText, inline: true })
   }
 
-  if (replayVerification) {
-    fields.push({ name: "Replay verification", value: replayVerification, inline: true })
-  }
+  fields.push({ name: "Replay verification", value: replayVerification, inline: true })
 
   return new EmbedBuilder()
     .setTitle("Run submission")

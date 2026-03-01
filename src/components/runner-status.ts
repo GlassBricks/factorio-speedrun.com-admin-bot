@@ -2,17 +2,24 @@ import { TypeBoxTypeProvider } from "@fastify/type-provider-typebox"
 import { Type } from "@sinclair/typebox"
 import { Client } from "discord.js"
 import fastify, { FastifyInstance } from "fastify"
+import { Op } from "sequelize"
 import { RunnerStatusServerConfig } from "../config-file.js"
 import { ReplayVerification, ReplayVerificationStatus } from "../db/index.js"
 import { createLogger } from "../logger.js"
+import { STALENESS_THRESHOLD_MS } from "./embed-fields.js"
 import type { MessageEditActor } from "./message-edit-actor.js"
 
 const logger = createLogger("[RunnerStatus]")
+
+const STALENESS_SWEEP_INTERVAL_MS = 10 * 60 * 1000
+const NON_FINAL_STATUSES = [ReplayVerificationStatus.Pending, ReplayVerificationStatus.Running]
 
 export interface RunnerStatusDeps {
   authToken: string
   upsertVerification: (runId: string, status: ReplayVerificationStatus, message?: string) => Promise<ReplayVerification>
   enqueueEdit: (runId: string) => void
+  touchHeartbeat: (runIds: string[]) => Promise<void>
+  sweepStale: () => Promise<string[]>
 }
 
 const RunStatusBody = Type.Object({
@@ -22,6 +29,10 @@ const RunStatusBody = Type.Object({
 
 const RunIdParams = Type.Object({
   runId: Type.String({ minLength: 1 }),
+})
+
+const HeartbeatBody = Type.Object({
+  runIds: Type.Array(Type.String({ minLength: 1 })),
 })
 
 export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstance {
@@ -36,12 +47,7 @@ export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstanc
 
   server.post(
     "/api/runs/:runId/status",
-    {
-      schema: {
-        body: RunStatusBody,
-        params: RunIdParams,
-      },
-    },
+    { schema: { body: RunStatusBody, params: RunIdParams } },
     async (request, reply) => {
       const { runId } = request.params
       const { status, message } = request.body
@@ -52,6 +58,11 @@ export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstanc
       return reply.status(200).send({ ok: true })
     },
   )
+
+  server.post("/api/runs/heartbeat", { schema: { body: HeartbeatBody } }, async (request, reply) => {
+    await deps.touchHeartbeat(request.body.runIds)
+    return reply.status(200).send({ ok: true })
+  })
 
   return server
 }
@@ -70,9 +81,44 @@ export async function setUpRunnerStatus(
       return verification
     },
     enqueueEdit: (runId) => actor.enqueue(runId),
+    touchHeartbeat: async (runIds) => {
+      if (runIds.length === 0) return
+      await ReplayVerification.update(
+        { updatedAt: new Date() },
+        { where: { runId: runIds, status: NON_FINAL_STATUSES }, silent: true },
+      )
+    },
+    sweepStale: async () => {
+      const cutoff = new Date(Date.now() - STALENESS_THRESHOLD_MS)
+      const staleRecords = await ReplayVerification.findAll({
+        where: { status: NON_FINAL_STATUSES, updatedAt: { [Op.lt]: cutoff } },
+        attributes: ["runId"],
+      })
+      const staleRunIds = staleRecords.map((r) => r.runId)
+      if (staleRunIds.length > 0) {
+        await ReplayVerification.destroy({ where: { runId: staleRunIds } })
+      }
+      return staleRunIds
+    },
   }
 
   const server = createRunnerStatusServer(deps)
+
+  setInterval(() => {
+    void deps
+      .sweepStale()
+      .then((staleRunIds) => {
+        for (const runId of staleRunIds) {
+          actor.enqueue(runId)
+        }
+        if (staleRunIds.length > 0) {
+          logger.info(`Swept ${staleRunIds.length} stale verification records`)
+        }
+      })
+      .catch((err) => {
+        logger.warn("Staleness sweep failed:", err)
+      })
+  }, STALENESS_SWEEP_INTERVAL_MS)
 
   await server.listen({ port: config.port, host: config.host ?? "0.0.0.0" })
   logger.info(`Runner status server listening on port ${config.port}`)

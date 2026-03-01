@@ -2,7 +2,13 @@ import { describe, expect, it } from "vitest"
 import { ReplayVerificationStatus } from "../db/replay-verification.js"
 import type { RunData } from "../db/run-data.js"
 import { SrcRunStatus } from "../db/run-data.js"
-import { formatVerificationStatus, renderEmbed, RenderEmbedInput } from "./embed-fields.js"
+import {
+  formatVerificationStatus,
+  renderEmbed,
+  resolveVerificationDisplay,
+  RenderEmbedInput,
+  STALENESS_THRESHOLD_MS,
+} from "./embed-fields.js"
 
 describe("formatVerificationStatus", () => {
   it("maps pending to correct emoji and text", () => {
@@ -40,6 +46,57 @@ describe("formatVerificationStatus", () => {
   })
 })
 
+function makeVerification(
+  overrides: Partial<{ status: ReplayVerificationStatus; message: string | null; updatedAt: Date }> = {},
+) {
+  return {
+    runId: "run-abc",
+    status: ReplayVerificationStatus.Pending,
+    message: null,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+    ...overrides,
+  } as import("../db/replay-verification.js").ReplayVerification
+}
+
+describe("resolveVerificationDisplay", () => {
+  it("returns 'Not yet run' for null record", () => {
+    expect(resolveVerificationDisplay(null)).toBe("🔍 Not yet run")
+  })
+
+  it("returns pending status for fresh pending record", () => {
+    expect(resolveVerificationDisplay(makeVerification())).toBe("⏳ Pending")
+  })
+
+  it("returns 'Not yet run' for stale pending record", () => {
+    const stale = new Date(Date.now() - STALENESS_THRESHOLD_MS - 1)
+    expect(resolveVerificationDisplay(makeVerification({ updatedAt: stale }))).toBe("🔍 Not yet run")
+  })
+
+  it("returns 'Not yet run' for stale running record", () => {
+    const stale = new Date(Date.now() - STALENESS_THRESHOLD_MS - 1)
+    expect(
+      resolveVerificationDisplay(makeVerification({ status: ReplayVerificationStatus.Running, updatedAt: stale })),
+    ).toBe("🔍 Not yet run")
+  })
+
+  it("still shows passed for stale passed record", () => {
+    const stale = new Date(Date.now() - STALENESS_THRESHOLD_MS - 1)
+    expect(
+      resolveVerificationDisplay(makeVerification({ status: ReplayVerificationStatus.Passed, updatedAt: stale })),
+    ).toBe("✅ Passed")
+  })
+
+  it("still shows failed for stale failed record", () => {
+    const stale = new Date(Date.now() - STALENESS_THRESHOLD_MS - 1)
+    expect(
+      resolveVerificationDisplay(
+        makeVerification({ status: ReplayVerificationStatus.Failed, message: "bad", updatedAt: stale }),
+      ),
+    ).toBe("❌ Failed: bad")
+  })
+})
+
 function makeRunData(overrides: Partial<RunData> = {}): RunData {
   return {
     gameId: "game123",
@@ -62,7 +119,7 @@ function makeInput(overrides: Partial<RenderEmbedInput> = {}): RenderEmbedInput 
     lastStatus: SrcRunStatus.New,
     videoProof: "[YouTube video](https://youtu.be/abc)",
     statusText: "⏳ new",
-    replayVerification: null,
+    replayVerification: "🔍 Not yet run",
     ...overrides,
   }
 }
@@ -139,12 +196,14 @@ describe("renderEmbed", () => {
     expect(field?.inline).toBe(true)
   })
 
-  it("omits replay verification field when null", () => {
+  it("always includes replay verification field", () => {
     const embed = renderEmbed(makeInput()).toJSON()
-    expect(embed.fields?.find((f) => f.name === "Replay verification")).toBeUndefined()
+    const field = embed.fields?.find((f) => f.name === "Replay verification")
+    expect(field?.value).toBe("🔍 Not yet run")
+    expect(field?.inline).toBe(true)
   })
 
-  it("includes replay verification field when provided", () => {
+  it("includes replay verification field with provided status", () => {
     const embed = renderEmbed(makeInput({ replayVerification: "✅ Passed" })).toJSON()
     const field = embed.fields?.find((f) => f.name === "Replay verification")
     expect(field?.value).toBe("✅ Passed")
