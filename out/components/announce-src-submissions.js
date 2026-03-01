@@ -1,20 +1,19 @@
+import { container } from "@sapphire/framework";
+import { Events } from "discord.js";
+import { parse } from "iso8601-duration";
+import { scheduleJob } from "node-schedule";
 import { getAllRuns, getGame, getLeaderboard, getUser, } from "src-ts";
 import { SrcRun, SrcRunStatus } from "../db/index.js";
-import { EmbedBuilder, Events, } from "discord.js";
-import { assertNever, botCanSendInChannel, formatDuration, formatPlace, getAllRunsSince, statusStrToStatus, } from "../utils.js";
+import { ReplayVerification } from "../db/replay-verification.js";
 import { createLogger } from "../logger.js";
-import { scheduleJob } from "node-schedule";
-import { parse } from "iso8601-duration";
-import { container } from "@sapphire/framework";
 import twitchClient from "../twitch.js";
-export function setUpAnnounceSrcSubmissions(client, config) {
+import { assertNever, botCanSendInChannel, formatDuration, getAllRunsSince } from "../utils.js";
+import { renderEmbed, resolveVerificationDisplay } from "./embed-fields.js";
+export function setUpAnnounceSrcSubmissions(client, config, actor) {
     if (config)
-        client.once(Events.ClientReady, (readyClient) => setup(readyClient, config));
+        client.once(Events.ClientReady, (readyClient) => setup(readyClient, config, actor));
 }
-/**
- * Update this if the message format changes
- */
-const MESSAGE_VERSION = 13;
+const MESSAGE_VERSION = 16;
 const runEmbeds = "players";
 const videoProviderRegexes = {
     twitch: /^(?:https?:\/\/)?(?:www\.)?twitch\.tv\/videos\/(\d+)/,
@@ -29,26 +28,12 @@ const TwitchVideoMessage = {
 };
 const YoutubeVideoMessage = "[YouTube video](%url)";
 const NoVideoMessage = "None found";
-var RunStatus;
-(function (RunStatus) {
-    RunStatus["New"] = "New";
-    RunStatus["Verified"] = "Verified";
-    RunStatus["Rejected"] = "Rejected";
-    RunStatus["SelfVerified"] = "SelfVerified";
-})(RunStatus || (RunStatus = {}));
 const StatusMessage = {
-    [RunStatus.New]: "⏳ new",
-    [RunStatus.Verified]: "verified by %p",
-    [RunStatus.Rejected]: "❌ rejected by %p",
-    [RunStatus.SelfVerified]: "auto-verified",
+    [SrcRunStatus.New]: "⏳ new",
+    [SrcRunStatus.Verified]: "verified by %p",
+    [SrcRunStatus.Rejected]: "❌ rejected by %p",
+    [SrcRunStatus.SelfVerified]: "auto-verified",
 };
-const StatusColor = {
-    [RunStatus.New]: "#ffee20",
-    [RunStatus.Verified]: "#20ff20",
-    [RunStatus.Rejected]: "#ff5050",
-    [RunStatus.SelfVerified]: "#75ff94",
-};
-// hardcoded for now
 function isChallengerRun(leaderboard, _run, _category, place) {
     return (leaderboard?.runs?.length ?? 0) >= 3 && place <= 3;
 }
@@ -71,39 +56,27 @@ async function getActualLeaderboard(game, run) {
     }
     return await getLeaderboard(run.game, run.category, leaderboardRunVars, { embed: "category" });
 }
-/**
- * Does not include: videoProof, status
- *
- * That will be filled in later in `processRun`
- */
-async function getInitialMessage(gameIds, run) {
+function getPlayerNames(players) {
+    return players.map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`));
+}
+async function buildRunData(gameIds, run) {
     const gameData = await getGameCached(run.game);
     const game = gameData.game;
     const leaderboard = await getActualLeaderboard(gameData, run);
     const category = leaderboard && (Array.isArray(leaderboard.category.data) ? undefined : leaderboard.category.data);
-    const place = leaderboard && findPlaceInLeaderboard(leaderboard, run);
-    function getPlayerNamesStr(players) {
-        return players
-            .map((player) => (player.rel == "user" ? player.names.international : `(Guest) ${player.name}`))
-            .join(", ");
-    }
-    const playerNames = run.players.data.length <= 4
-        ? getPlayerNamesStr(run.players.data)
-        : getPlayerNamesStr(run.players.data.slice(0, 3)) + `, and ${run.players.data.length - 3} more`;
+    const place = leaderboard ? findPlaceInLeaderboard(leaderboard, run) : undefined;
     const categoryName = category?.name ?? "Unknown category";
     const gameName = game.names.international;
     const durationStr = formatDuration(parse(run.times.primary));
     return {
-        title: "Run submission",
-        description: `## ${gameName} | [${categoryName} by ${playerNames} in ${durationStr}](${run.weblink})`,
-        thumbnail: `https://www.speedrun.com/static/game/${game.id}/cover.png`,
-        timestamp: new Date(run.submitted),
-        color: StatusColor[getRunStatus(run)],
-        isChallengerRun: category !== undefined && place !== undefined && isChallengerRun(leaderboard, run, category, place),
+        gameId: game.id,
+        gameName,
+        categoryName,
+        players: getPlayerNames(run.players.data),
+        time: durationStr,
         place: place ?? -1,
+        isChallengerRun: category !== undefined && place !== undefined && isChallengerRun(leaderboard, run, category, place),
         firstTimeSubmissionPlayers: [],
-        videoProof: "",
-        status: "",
     };
 }
 async function isNewSubmitter(gameIds, playerId, excludedRunId) {
@@ -129,51 +102,8 @@ async function findNewPlayers(gameIds, players, excludedRunId) {
     }
     return result;
 }
-function getEmbedFields(parts, fromExisting) {
-    function field(name, keys, valueFromParts, inline = false) {
-        if (!keys.every((k) => k in parts)) {
-            return fromExisting?.find((x) => x.name === name);
-        }
-        else if (!valueFromParts) {
-            return undefined;
-        }
-        else
-            return {
-                name,
-                value: valueFromParts,
-                inline,
-            };
-    }
-    return [
-        field("🎉 First time submission", ["firstTimeSubmissionPlayers"], parts.firstTimeSubmissionPlayers?.join(", "), true),
-        field("🏆 Challenger run", ["isChallengerRun", "place"], parts.isChallengerRun && parts.place !== undefined && `May be ${getPlaceText(parts.place)}!`, true),
-        field("Place", ["place", "isChallengerRun"], !parts.isChallengerRun && parts.place !== undefined && getPlaceText(parts.place), true),
-        field("Video proof", ["videoProof"], parts.videoProof),
-        field("Status", ["status"], parts.status, true),
-    ].filter((x) => !!x);
-}
-function getPlaceText(place) {
-    return place === null
-        ? "Unknown"
-        : place === 1
-            ? "🥇 A New World Record"
-            : place === 2
-                ? "🥈"
-                : place === 3
-                    ? "🥉"
-                    : formatPlace(place);
-}
-function isEmptyObject(obj) {
-    // noinspection LoopStatementThatDoesntLoopJS
-    for (const _ in obj) {
-        return false;
-    }
-    return true;
-}
-function setup(client, config) {
-    scheduleJob("processSrcSubmissions", config.cronSchedule, () => logErrors(run()))
-        // Run once on startup
-        .invoke();
+function setup(client, config, actor) {
+    scheduleJob("processSrcSubmissions", config.cronSchedule, () => logErrors(run())).invoke();
     const gameIds = config.games.map((x) => x.id);
     async function run() {
         logger.info("Starting announce SRC submissions");
@@ -193,52 +123,60 @@ function setup(client, config) {
     }
     async function processRun({ srcRun, dbRun }, notifyChannel) {
         logger.debug("Processing run:", srcRun.id);
-        const status = statusStrToStatus(srcRun.status.status);
+        const status = getRunStatus(srcRun);
         const currentVideoProof = findVideoUrl(srcRun);
         let message;
         const isNewMessage = !dbRun;
         if (!dbRun) {
-            message = await createRunMessage(srcRun, notifyChannel);
+            const runData = await buildRunData(gameIds, srcRun);
             dbRun = new SrcRun({
                 runId: srcRun.id,
                 submissionTime: new Date(srcRun.submitted),
-                messageId: message.id,
-                messageChannelId: message.channelId,
+                messageChannelId: null,
+                messageId: null,
                 messageVersion: MESSAGE_VERSION,
                 lastStatus: SrcRunStatus.Unknown,
                 videoProof: currentVideoProof?.url,
                 newPlayerAnnounceChecked: false,
+                runData,
             });
         }
         const isOutdatedMessage = dbRun.messageVersion !== MESSAGE_VERSION;
-        const editAllParts = isOutdatedMessage || isNewMessage;
+        const needsRunDataRefresh = isOutdatedMessage || !dbRun.runData;
         const statusChanged = dbRun.lastStatus !== status;
-        const shouldCheckNewPlayers = !dbRun.newPlayerAnnounceChecked && (isNewMessage || statusChanged) && status === SrcRunStatus.Verified;
+        const isVerified = status === SrcRunStatus.Verified || status === SrcRunStatus.SelfVerified;
+        const shouldCheckNewPlayers = !dbRun.newPlayerAnnounceChecked && (isNewMessage || statusChanged) && isVerified;
         const shouldAwaitUpdate = shouldCheckNewPlayers;
         const promise = (async () => {
-            const toEditParts = isOutdatedMessage ? await getInitialMessage(gameIds, srcRun) : {};
-            if (editAllParts || statusChanged) {
-                logger.trace("Updating run status", srcRun.id, "to", status);
-                toEditParts.status = await getStatusText(srcRun);
-                toEditParts.color = getRunColor(srcRun);
+            if (needsRunDataRefresh) {
+                dbRun.runData = await buildRunData(gameIds, srcRun);
+            }
+            if (statusChanged || isNewMessage || needsRunDataRefresh) {
                 dbRun.lastStatus = status;
+                dbRun.statusText = await getStatusText(srcRun);
             }
-            if (editAllParts || dbRun.videoProof !== currentVideoProof?.url) {
-                logger.trace("Updating video proof", srcRun.id);
-                toEditParts.videoProof = await fetchVideoText(currentVideoProof);
+            const videoChanged = dbRun.videoProof !== currentVideoProof?.url;
+            if (videoChanged || needsRunDataRefresh) {
                 dbRun.videoProof = currentVideoProof?.url;
+                dbRun.videoProofText = await fetchVideoText(currentVideoProof);
             }
-            if (editAllParts || shouldCheckNewPlayers) {
+            if (shouldCheckNewPlayers) {
                 const newPlayers = await findNewPlayers(gameIds, srcRun.players.data, srcRun.id);
                 if (newPlayers.length > 0) {
-                    toEditParts.firstTimeSubmissionPlayers = newPlayers;
+                    dbRun.runData = { ...dbRun.runData, firstTimeSubmissionPlayers: newPlayers };
                 }
             }
-            if (!isEmptyObject(toEditParts)) {
-                logger.debug("Editing message", srcRun.id);
-                message ??= await fetchDiscordMessage(dbRun);
-                if (message) {
-                    await editRunMessage(message, toEditParts);
+            const shouldEditMessage = needsRunDataRefresh || statusChanged || videoChanged || isNewMessage;
+            if (dbRun.runData && (isNewMessage || shouldEditMessage)) {
+                const embed = await buildEmbedFromDb(dbRun);
+                if (isNewMessage) {
+                    logger.info("Creating run message", srcRun.id);
+                    message = await notifyChannel.send({ embeds: [embed] });
+                    dbRun.messageId = message.id;
+                    dbRun.messageChannelId = message.channelId;
+                }
+                else {
+                    actor.enqueue(srcRun.id);
                 }
                 dbRun.messageVersion = MESSAGE_VERSION;
             }
@@ -246,7 +184,7 @@ function setup(client, config) {
                 logger.debug("No changes for run", srcRun.id);
             }
             if (shouldCheckNewPlayers) {
-                launch(announceNewPlayers(notifyChannel, toEditParts.firstTimeSubmissionPlayers));
+                launch(announceNewPlayers(notifyChannel, dbRun.runData?.firstTimeSubmissionPlayers));
                 dbRun.newPlayerAnnounceChecked = true;
             }
             launch(dbRun.save());
@@ -257,6 +195,18 @@ function setup(client, config) {
         else {
             launch(promise);
         }
+    }
+    async function buildEmbedFromDb(dbRun) {
+        const verification = await ReplayVerification.findByPk(dbRun.runId);
+        return renderEmbed({
+            runData: dbRun.runData,
+            runId: dbRun.runId,
+            submissionTime: dbRun.submissionTime,
+            lastStatus: dbRun.lastStatus,
+            videoProof: dbRun.videoProofText ?? "None found",
+            statusText: dbRun.statusText ?? "⏳ new",
+            replayVerification: resolveVerificationDisplay(verification),
+        });
     }
     function joinWordsAnd(words) {
         if (words.length === 0)
@@ -275,43 +225,8 @@ function setup(client, config) {
             });
         }
     }
-    function createEmbed(parts, editFrom) {
-        const builder = editFrom ? EmbedBuilder.from(editFrom) : new EmbedBuilder();
-        if (parts.title)
-            builder.setTitle(parts.title);
-        if (parts.description)
-            builder.setDescription(parts.description);
-        if (parts.thumbnail)
-            builder.setThumbnail(parts.thumbnail);
-        if (parts.timestamp)
-            builder.setTimestamp(parts.timestamp);
-        if (parts.color)
-            builder.setColor(parts.color);
-        builder.setFields(getEmbedFields(parts, editFrom?.fields));
-        return builder;
-    }
-    async function createRunMessage(run, notifyChannel) {
-        logger.info("Creating run message", run.id);
-        const parts = await getInitialMessage(gameIds, run);
-        return await notifyChannel.send({ embeds: [createEmbed(parts)] });
-    }
-    async function editRunMessage(message, parts) {
-        await message.edit({
-            content: null,
-            embeds: [createEmbed(parts, message.embeds[0])],
-            flags: "0",
-        });
-    }
 }
 const messageUpdateMaxAge = 30;
-/**
- * Fetches runs that:
- * - Are newer than the newest run in the database (newly submitted)
- * - Have a "new" status (so old runs that get un-verified are included)
- * - Are already saved in the database (so we might update their status), with a new status
- *
- * Does not mutate the database.
- */
 async function getRunsToProcess(gameIds) {
     const allDbRuns = await SrcRun.findAll({ order: [["submissionTime", "desc"]] });
     const latestSavedSubmission = allDbRuns[0]?.submissionTime ?? new Date(Date.now() - 60 * 60 * 24 * 1000 * 7);
@@ -397,7 +312,7 @@ async function fetchVideoMessageTemplate(url) {
 async function fetchVideoText(url) {
     return (await fetchVideoMessageTemplate(url)).replace("%url", url?.url ?? "");
 }
-async function fetchDiscordMessage(dbRun) {
+export async function fetchDiscordMessage(dbRun) {
     if (!dbRun.messageChannelId || !dbRun.messageId)
         return undefined;
     let message;
@@ -414,20 +329,17 @@ function getRunStatus(run) {
     const examinerId = "examiner" in run.status ? run.status.examiner : undefined;
     const isSelfVerified = run.status.status == "verified" && run.players.data.some((x) => x.rel === "user" && x.id === examinerId);
     if (isSelfVerified)
-        return RunStatus.SelfVerified;
+        return SrcRunStatus.SelfVerified;
     switch (run.status.status) {
         case "new":
-            return RunStatus.New;
+            return SrcRunStatus.New;
         case "verified":
-            return RunStatus.Verified;
+            return SrcRunStatus.Verified;
         case "rejected":
-            return RunStatus.Rejected;
+            return SrcRunStatus.Rejected;
         default:
-            return RunStatus.New;
+            return SrcRunStatus.New;
     }
-}
-function getRunColor(srcRun) {
-    return StatusColor[getRunStatus(srcRun)];
 }
 async function getStatusText(run) {
     const status = getRunStatus(run);

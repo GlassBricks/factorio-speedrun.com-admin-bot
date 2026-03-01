@@ -8,7 +8,12 @@ var __metadata = (this && this.__metadata) || function (k, v) {
     if (typeof Reflect === "object" && typeof Reflect.metadata === "function") return Reflect.metadata(k, v);
 };
 var KnownFactorioVersion_1;
+import { DataTypes } from "sequelize";
 import { Column, CreatedAt, Index, Model, PrimaryKey, Sequelize, Table } from "sequelize-typescript";
+import { ReplayVerification } from "./replay-verification.js";
+import { SrcRunStatus } from "./run-data.js";
+export { ReplayVerification, ReplayVerificationStatus } from "./replay-verification.js";
+export { SrcRunStatus } from "./run-data.js";
 // for vote-initiate command
 let VoteInitiateMessage = class VoteInitiateMessage extends Model {
 };
@@ -51,13 +56,6 @@ KnownFactorioVersion = KnownFactorioVersion_1 = __decorate([
     Table
 ], KnownFactorioVersion);
 export { KnownFactorioVersion };
-export var SrcRunStatus;
-(function (SrcRunStatus) {
-    SrcRunStatus[SrcRunStatus["New"] = 0] = "New";
-    SrcRunStatus[SrcRunStatus["Verified"] = 1] = "Verified";
-    SrcRunStatus[SrcRunStatus["Rejected"] = 2] = "Rejected";
-    SrcRunStatus[SrcRunStatus["Unknown"] = 37] = "Unknown";
-})(SrcRunStatus || (SrcRunStatus = {}));
 let AnnounceMessage = class AnnounceMessage extends Model {
 };
 __decorate([
@@ -95,12 +93,12 @@ __decorate([
     __metadata("design:type", Date)
 ], SrcRun.prototype, "submissionTime", void 0);
 __decorate([
-    Column,
-    __metadata("design:type", String)
+    Column(DataTypes.STRING),
+    __metadata("design:type", Object)
 ], SrcRun.prototype, "messageChannelId", void 0);
 __decorate([
-    Column,
-    __metadata("design:type", String)
+    Column(DataTypes.STRING),
+    __metadata("design:type", Object)
 ], SrcRun.prototype, "messageId", void 0);
 __decorate([
     Column,
@@ -110,6 +108,18 @@ __decorate([
     Column,
     __metadata("design:type", String)
 ], SrcRun.prototype, "videoProof", void 0);
+__decorate([
+    Column(DataTypes.STRING),
+    __metadata("design:type", Object)
+], SrcRun.prototype, "videoProofText", void 0);
+__decorate([
+    Column(DataTypes.STRING),
+    __metadata("design:type", Object)
+], SrcRun.prototype, "statusText", void 0);
+__decorate([
+    Column(DataTypes.JSON),
+    __metadata("design:type", Object)
+], SrcRun.prototype, "runData", void 0);
 __decorate([
     Column,
     __metadata("design:type", Boolean)
@@ -188,6 +198,14 @@ export const sequelize = new Sequelize({
     dialect: "sqlite",
     storage: dev ? ":memory:" : "database.sqlite",
     // storage: "database.sqlite",
-    models: [VoteInitiateMessage, KnownFactorioVersion, SrcRun, AnnounceMessage, MessageReport, DiscussionBan],
+    models: [
+        VoteInitiateMessage,
+        KnownFactorioVersion,
+        SrcRun,
+        AnnounceMessage,
+        MessageReport,
+        DiscussionBan,
+        ReplayVerification,
+    ],
 });
 //# sourceMappingURL=index.js.map

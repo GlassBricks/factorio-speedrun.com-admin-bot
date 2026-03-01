@@ -10,6 +10,7 @@ export interface Config {
   announceSrcSubmissions?: AnnounceSrcSubmissionsConfig
   discussionModeration?: DiscussionModerationConfig
   threadInactivityMonitor?: ThreadInactivityMonitorConfig
+  runnerStatus?: RunnerStatusServerConfig
 }
 
 export interface VoteInitiateCommandConfig {
@@ -103,6 +104,11 @@ export interface ThreadInactivityMonitorConfig {
   cronSchedule: string
   inactivityDays: number
   reminderMessage: string
+}
+
+export interface RunnerStatusServerConfig {
+  port: number
+  host?: string
 }
 
 const dev = process.env.NODE_ENV === "development"

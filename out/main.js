@@ -9,6 +9,8 @@ import { setUpAnnounceFactorioVersion } from "./components/announce-factorio-ver
 import { setUpAnnounceSrcSubmissions } from "./components/announce-src-submissions.js";
 import { setUpAnnouncementRelay } from "./components/announcement-relay.js";
 import { setUpThreadInactivityMonitor } from "./components/thread-inactivity-monitor.js";
+import { MessageEditActor } from "./components/message-edit-actor.js";
+import { setUpRunnerStatus } from "./components/runner-status.js";
 dotEnvConfig();
 const dev = process.env.NODE_ENV === "development";
 const client = new SapphireClient({
@@ -37,8 +39,10 @@ for (const a of config.announcementRelay ?? []) {
 }
 setUpVoteInitiateCommand(client, config.voteInitiateCommands);
 setUpAnnounceFactorioVersion(client, config.announceNewFactorioVersion);
-setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions);
+const messageEditActor = new MessageEditActor();
+setUpAnnounceSrcSubmissions(client, config.announceSrcSubmissions, messageEditActor);
 setUpThreadInactivityMonitor(client, config.threadInactivityMonitor);
+await setUpRunnerStatus(client, config.runnerStatus, messageEditActor);
 await syncDatabase(client.logger);
 client.on("applicationCommandRegistriesRegistered", () => {
     for (const [name, command] of client.application?.commands.cache ?? []) {

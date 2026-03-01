@@ -77,5 +77,8 @@ const config = {
     inactivityDays: 1 / 24 / 60,
     reminderMessage: "Friendly reminder: this thread has been inactive for a while. Any updates?",
   },
+  runnerStatus: {
+    port: 3001,
+  },
 }
 export default config
