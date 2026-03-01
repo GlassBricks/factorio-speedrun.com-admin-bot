@@ -212,7 +212,7 @@ function setup(client: Client<true>, config: AnnounceSrcSubmissionsConfig, actor
         dbRun.statusText = await getStatusText(srcRun)
       }
 
-      const videoChanged = dbRun.videoProof !== currentVideoProof?.url
+      const videoChanged = (dbRun.videoProof ?? undefined) !== currentVideoProof?.url
       if (videoChanged || needsRunDataRefresh) {
         dbRun.videoProof = currentVideoProof?.url
         dbRun.videoProofText = await fetchVideoText(currentVideoProof)
