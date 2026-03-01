@@ -109,7 +109,6 @@ export interface ThreadInactivityMonitorConfig {
 export interface RunnerStatusServerConfig {
   port: number
   host?: string
-  authToken: string
 }
 
 const dev = process.env.NODE_ENV === "development"

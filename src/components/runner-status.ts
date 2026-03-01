@@ -104,8 +104,11 @@ export async function setUpRunnerStatus(
 ): Promise<void> {
   if (!config) return
 
+  const authToken = process.env.RUNNER_STATUS_AUTH_TOKEN
+  if (!authToken) throw new Error("RUNNER_STATUS_AUTH_TOKEN env var is required when runnerStatus is configured")
+
   const deps: RunnerStatusDeps = {
-    authToken: config.authToken,
+    authToken,
     upsertVerification: async (runId, status, message) => {
       const [verification] = await ReplayVerification.upsert({ runId, status, message: message ?? null })
       return verification

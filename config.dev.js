@@ -79,7 +79,6 @@ const config = {
   },
   runnerStatus: {
     port: 3001,
-    authToken: "test-secret-token",
   },
 }
 export default config
