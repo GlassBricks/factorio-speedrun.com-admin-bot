@@ -17,6 +17,7 @@ const NON_FINAL_STATUSES = [ReplayVerificationStatus.Pending, ReplayVerification
 export interface RunnerStatusDeps {
   authToken: string
   upsertVerification: (runId: string, status: ReplayVerificationStatus, message?: string) => Promise<ReplayVerification>
+  destroyVerification: (runId: string) => Promise<void>
   enqueueEdit: (runId: string) => void
   touchHeartbeat: (runIds: string[]) => Promise<void>
 }
@@ -81,6 +82,13 @@ export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstanc
     },
   )
 
+  server.delete("/api/runs/:runId/status", { schema: { params: RunIdParams } }, async (request, reply) => {
+    const { runId } = request.params
+    await deps.destroyVerification(runId)
+    deps.enqueueEdit(runId)
+    return reply.status(200).send({ ok: true })
+  })
+
   server.post("/api/runs/status", { schema: { body: BulkStatusBody } }, async (request, reply) => {
     for (const run of request.body.runs) {
       await deps.upsertVerification(run.runId, run.status, run.message)
@@ -112,6 +120,9 @@ export async function setUpRunnerStatus(
     upsertVerification: async (runId, status, message) => {
       const [verification] = await ReplayVerification.upsert({ runId, status, message: message ?? null })
       return verification
+    },
+    destroyVerification: async (runId) => {
+      await ReplayVerification.destroy({ where: { runId } })
     },
     enqueueEdit: (runId) => actor.enqueue(runId),
     touchHeartbeat: async (runIds) => {
