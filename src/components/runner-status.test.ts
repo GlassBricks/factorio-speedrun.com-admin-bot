@@ -36,7 +36,6 @@ function makeDeps(overrides: Partial<RunnerStatusDeps> = {}): RunnerStatusDeps {
     upsertVerification: vi.fn().mockResolvedValue({}),
     enqueueEdit: vi.fn(),
     touchHeartbeat: vi.fn().mockResolvedValue(undefined),
-    sweepStale: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
 }

@@ -19,7 +19,6 @@ export interface RunnerStatusDeps {
   upsertVerification: (runId: string, status: ReplayVerificationStatus, message?: string) => Promise<ReplayVerification>
   enqueueEdit: (runId: string) => void
   touchHeartbeat: (runIds: string[]) => Promise<void>
-  sweepStale: () => Promise<string[]>
 }
 
 const RunStatusBody = Type.Object({
@@ -44,6 +43,19 @@ const BulkStatusBody = Type.Object({
 const HeartbeatBody = Type.Object({
   runIds: Type.Array(Type.String({ minLength: 1 })),
 })
+
+async function sweepStaleVerifications(): Promise<string[]> {
+  const cutoff = new Date(Date.now() - STALENESS_THRESHOLD_MS)
+  const staleRecords = await ReplayVerification.findAll({
+    where: { status: NON_FINAL_STATUSES, updatedAt: { [Op.lt]: cutoff } },
+    attributes: ["runId"],
+  })
+  const staleRunIds = staleRecords.map((r) => r.runId)
+  if (staleRunIds.length > 0) {
+    await ReplayVerification.destroy({ where: { runId: staleRunIds } })
+  }
+  return staleRunIds
+}
 
 export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstance {
   const server = fastify().withTypeProvider<TypeBoxTypeProvider>()
@@ -106,25 +118,12 @@ export async function setUpRunnerStatus(
         { where: { runId: runIds, status: NON_FINAL_STATUSES }, silent: true },
       )
     },
-    sweepStale: async () => {
-      const cutoff = new Date(Date.now() - STALENESS_THRESHOLD_MS)
-      const staleRecords = await ReplayVerification.findAll({
-        where: { status: NON_FINAL_STATUSES, updatedAt: { [Op.lt]: cutoff } },
-        attributes: ["runId"],
-      })
-      const staleRunIds = staleRecords.map((r) => r.runId)
-      if (staleRunIds.length > 0) {
-        await ReplayVerification.destroy({ where: { runId: staleRunIds } })
-      }
-      return staleRunIds
-    },
   }
 
   const server = createRunnerStatusServer(deps)
 
   setInterval(() => {
-    void deps
-      .sweepStale()
+    void sweepStaleVerifications()
       .then((staleRunIds) => {
         for (const runId of staleRunIds) {
           actor.enqueue(runId)
