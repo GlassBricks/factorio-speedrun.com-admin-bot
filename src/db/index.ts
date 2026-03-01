@@ -69,10 +69,10 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   @Column
   declare submissionTime: Date
 
-  @Column
+  @Column(DataTypes.STRING)
   declare messageChannelId: CreationOptional<Snowflake | null>
 
-  @Column
+  @Column(DataTypes.STRING)
   declare messageId: CreationOptional<Snowflake | null>
 
   @Column
@@ -81,10 +81,10 @@ export class SrcRun extends Model<InferAttributes<SrcRun>, InferCreationAttribut
   @Column
   declare videoProof?: string
 
-  @Column
+  @Column(DataTypes.STRING)
   declare videoProofText: CreationOptional<string | null>
 
-  @Column
+  @Column(DataTypes.STRING)
   declare statusText: CreationOptional<string | null>
 
   @Column(DataTypes.JSON)

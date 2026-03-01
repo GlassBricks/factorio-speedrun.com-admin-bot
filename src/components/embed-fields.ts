@@ -33,9 +33,9 @@ export function formatVerificationStatus(status: ReplayVerificationStatus, messa
     case ReplayVerificationStatus.Passed:
       return "✅ Passed"
     case ReplayVerificationStatus.NeedsReview:
-      return "⚠️ Needs review"
+      return message ? `⚠️ Needs review: ${message}` : "⚠️ Needs review"
     case ReplayVerificationStatus.Failed:
-      return "❌ Failed"
+      return message ? `❌ Failed: ${message}` : "❌ Failed"
     case ReplayVerificationStatus.Error:
       return message ? `💥 Error: ${message}` : "💥 Error"
   }
