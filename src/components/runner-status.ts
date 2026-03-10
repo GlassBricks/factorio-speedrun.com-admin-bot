@@ -4,7 +4,7 @@ import { Client } from "discord.js"
 import fastify, { FastifyInstance } from "fastify"
 import { Op } from "sequelize"
 import { RunnerStatusServerConfig } from "../config-file.js"
-import { ReplayVerification, ReplayVerificationStatus } from "../db/index.js"
+import { ReplayVerification, ReplayVerificationStatus, sequelize } from "../db/index.js"
 import { createLogger } from "../logger.js"
 import { STALENESS_THRESHOLD_MS } from "./embed-fields.js"
 import type { MessageEditActor } from "./message-edit-actor.js"
@@ -19,7 +19,7 @@ export interface RunnerStatusDeps {
   upsertVerification: (runId: string, status: ReplayVerificationStatus, message?: string) => Promise<ReplayVerification>
   destroyVerification: (runId: string) => Promise<void>
   enqueueEdit: (runId: string) => void
-  touchHeartbeat: (runIds: string[]) => Promise<void>
+  touchHeartbeat: (runIds: string[]) => Promise<string[]>
 }
 
 const RunStatusBody = Type.Object({
@@ -98,7 +98,10 @@ export function createRunnerStatusServer(deps: RunnerStatusDeps): FastifyInstanc
   })
 
   server.post("/api/runs/heartbeat", { schema: { body: HeartbeatBody } }, async (request, reply) => {
-    await deps.touchHeartbeat(request.body.runIds)
+    const newRunIds = await deps.touchHeartbeat(request.body.runIds)
+    for (const runId of newRunIds) {
+      deps.enqueueEdit(runId)
+    }
     return reply.status(200).send({ ok: true })
   })
 
@@ -126,11 +129,27 @@ export async function setUpRunnerStatus(
     },
     enqueueEdit: (runId) => actor.enqueue(runId),
     touchHeartbeat: async (runIds) => {
-      if (runIds.length === 0) return
-      await ReplayVerification.update(
-        { updatedAt: new Date() },
-        { where: { runId: runIds, status: NON_FINAL_STATUSES }, silent: true },
-      )
+      if (runIds.length === 0) return []
+      return sequelize.transaction(async (transaction) => {
+        await ReplayVerification.update(
+          { updatedAt: new Date() },
+          { where: { runId: runIds, status: NON_FINAL_STATUSES }, silent: true, transaction },
+        )
+        const existing = await ReplayVerification.findAll({
+          where: { runId: runIds },
+          attributes: ["runId"],
+          transaction,
+        })
+        const existingIds = new Set(existing.map((r) => r.runId))
+        const newRunIds = runIds.filter((id) => !existingIds.has(id))
+        if (newRunIds.length > 0) {
+          await ReplayVerification.bulkCreate(
+            newRunIds.map((runId) => ({ runId, status: ReplayVerificationStatus.Pending })),
+            { transaction },
+          )
+        }
+        return newRunIds
+      })
     },
   }
 
