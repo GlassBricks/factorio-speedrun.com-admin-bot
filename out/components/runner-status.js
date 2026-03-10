@@ -1,7 +1,7 @@
 import { Type } from "@sinclair/typebox";
 import fastify from "fastify";
 import { Op } from "sequelize";
-import { ReplayVerification, ReplayVerificationStatus } from "../db/index.js";
+import { ReplayVerification, ReplayVerificationStatus, sequelize } from "../db/index.js";
 import { createLogger } from "../logger.js";
 import { STALENESS_THRESHOLD_MS } from "./embed-fields.js";
 const logger = createLogger("[RunnerStatus]");
@@ -65,7 +65,10 @@ export function createRunnerStatusServer(deps) {
         return reply.status(200).send({ ok: true });
     });
     server.post("/api/runs/heartbeat", { schema: { body: HeartbeatBody } }, async (request, reply) => {
-        await deps.touchHeartbeat(request.body.runIds);
+        const newRunIds = await deps.touchHeartbeat(request.body.runIds);
+        for (const runId of newRunIds) {
+            deps.enqueueEdit(runId);
+        }
         return reply.status(200).send({ ok: true });
     });
     return server;
@@ -88,8 +91,21 @@ export async function setUpRunnerStatus(_client, config, actor) {
         enqueueEdit: (runId) => actor.enqueue(runId),
         touchHeartbeat: async (runIds) => {
             if (runIds.length === 0)
-                return;
-            await ReplayVerification.update({ updatedAt: new Date() }, { where: { runId: runIds, status: NON_FINAL_STATUSES }, silent: true });
+                return [];
+            return sequelize.transaction(async (transaction) => {
+                await ReplayVerification.update({ updatedAt: new Date() }, { where: { runId: runIds, status: NON_FINAL_STATUSES }, silent: true, transaction });
+                const existing = await ReplayVerification.findAll({
+                    where: { runId: runIds },
+                    attributes: ["runId"],
+                    transaction,
+                });
+                const existingIds = new Set(existing.map((r) => r.runId));
+                const newRunIds = runIds.filter((id) => !existingIds.has(id));
+                if (newRunIds.length > 0) {
+                    await ReplayVerification.bulkCreate(newRunIds.map((runId) => ({ runId, status: ReplayVerificationStatus.Pending })), { transaction });
+                }
+                return newRunIds;
+            });
         },
     };
     const server = createRunnerStatusServer(deps);

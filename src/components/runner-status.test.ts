@@ -36,7 +36,7 @@ function makeDeps(overrides: Partial<RunnerStatusDeps> = {}): RunnerStatusDeps {
     upsertVerification: vi.fn().mockResolvedValue({}),
     destroyVerification: vi.fn().mockResolvedValue(undefined),
     enqueueEdit: vi.fn(),
-    touchHeartbeat: vi.fn().mockResolvedValue(undefined),
+    touchHeartbeat: vi.fn().mockResolvedValue([]),
     ...overrides,
   }
 }
@@ -295,7 +295,7 @@ describe("heartbeat endpoint", () => {
     expect(response.statusCode).toBe(401)
   })
 
-  it("does not trigger enqueueEdit", async () => {
+  it("does not trigger enqueueEdit for existing runs", async () => {
     const deps = makeDeps()
     const server = createRunnerStatusServer(deps)
 
@@ -307,5 +307,20 @@ describe("heartbeat endpoint", () => {
     })
 
     expect(deps.enqueueEdit).not.toHaveBeenCalled()
+  })
+
+  it("triggers enqueueEdit for newly created runs", async () => {
+    const deps = makeDeps({ touchHeartbeat: vi.fn().mockResolvedValue(["run-new"]) })
+    const server = createRunnerStatusServer(deps)
+
+    await server.inject({
+      method: "POST",
+      url: "/api/runs/heartbeat",
+      headers: authHeader(),
+      payload: { runIds: ["run-existing", "run-new"] },
+    })
+
+    expect(deps.enqueueEdit).toHaveBeenCalledWith("run-new")
+    expect(deps.enqueueEdit).toHaveBeenCalledTimes(1)
   })
 })
